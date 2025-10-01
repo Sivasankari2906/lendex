@@ -11,6 +11,7 @@ export default function Header({ currentUser, onLogout, onNavigate }) {
         <nav className="nav-links">
           <a href="#" className="nav-link" onClick={() => onNavigate('loans')}>Loans</a>
           <a href="#" className="nav-link" onClick={() => onNavigate('borrowers')}>Borrowers</a>
+          <a href="#" className="nav-link" onClick={() => onNavigate('emi')}>EMI</a>
         </nav>
         <div className="user-menu">
           <button 

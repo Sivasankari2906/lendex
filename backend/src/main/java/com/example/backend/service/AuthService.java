@@ -25,12 +25,12 @@ public class AuthService {
     private final Map<String, String> resetTokens = new ConcurrentHashMap<>();
     private final Map<String, LocalDateTime> resetTokenExpiry = new ConcurrentHashMap<>();
 
-    public AuthService(UserRepository userRepo, BCryptPasswordEncoder passwordEncoder, JwtUtil jwtUtil, EmailService emailService, SmsService smsService) {
+    public AuthService(UserRepository userRepo, BCryptPasswordEncoder passwordEncoder, JwtUtil jwtUtil, EmailService emailService) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.emailService = emailService;
-        this.smsService = smsService;
+        this.smsService = new SmsService();
     }
 
     public String register(String username, String password, String fullName, String email, String phone) {
@@ -48,18 +48,19 @@ public class AuthService {
         return jwtUtil.generateToken(username);
     }
     
-    public void sendOtp(String phone) {
+    public void sendOtp(String email) {
         String otp = String.format("%06d", new Random().nextInt(999999));
-        otpStorage.put(phone, otp);
-        otpExpiry.put(phone, LocalDateTime.now().plusMinutes(5));
+        otpStorage.put(email, otp);
+        otpExpiry.put(email, LocalDateTime.now().plusMinutes(5));
         
-        String message = "Your Lendex verification code is: " + otp + ". Valid for 5 minutes.";
-        smsService.sendSms(phone, message);
+        String subject = "Phone Verification - Lendex";
+        String body = "Hello,\n\nYour phone verification OTP is: " + otp + "\n\nThis OTP will expire in 5 minutes.\n\nBest regards,\nLendex Team";
+        emailService.sendEmailFromLendex(email, subject, body);
     }
     
-    public boolean verifyOtp(String phone, String otp) {
-        String storedOtp = otpStorage.get(phone);
-        LocalDateTime expiry = otpExpiry.get(phone);
+    public boolean verifyOtp(String email, String otp) {
+        String storedOtp = otpStorage.get(email);
+        LocalDateTime expiry = otpExpiry.get(email);
         
         if (storedOtp == null || expiry == null || LocalDateTime.now().isAfter(expiry)) {
             return false;
@@ -67,8 +68,8 @@ public class AuthService {
         
         boolean isValid = storedOtp.equals(otp);
         if (isValid) {
-            otpStorage.remove(phone);
-            otpExpiry.remove(phone);
+            otpStorage.remove(email);
+            otpExpiry.remove(email);
         }
         return isValid;
     }

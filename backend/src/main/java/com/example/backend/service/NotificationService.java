@@ -1,7 +1,10 @@
 package com.example.backend.service;
 
+import com.example.backend.entity.EMI;
 import com.example.backend.entity.Loan;
 import com.example.backend.entity.Notification;
+import com.example.backend.repository.EMIRepository;
+import com.example.backend.repository.EMIPaymentRepository;
 import com.example.backend.repository.LoanRepository;
 import com.example.backend.repository.NotificationRepository;
 import com.example.backend.repository.PaymentRepository;
@@ -17,14 +20,18 @@ import java.util.List;
 public class NotificationService {
     private final NotificationRepository notificationRepo;
     private final LoanRepository loanRepo;
+    private final EMIRepository emiRepo;
     private final PaymentRepository paymentRepo;
+    private final EMIPaymentRepository emiPaymentRepo;
     private final SmsService smsService;
     private final EmailService emailService;
 
-    public NotificationService(NotificationRepository notificationRepo, LoanRepository loanRepo, PaymentRepository paymentRepo, SmsService smsService, EmailService emailService) {
+    public NotificationService(NotificationRepository notificationRepo, LoanRepository loanRepo, EMIRepository emiRepo, PaymentRepository paymentRepo, EMIPaymentRepository emiPaymentRepo, SmsService smsService, EmailService emailService) {
         this.notificationRepo = notificationRepo;
         this.loanRepo = loanRepo;
+        this.emiRepo = emiRepo;
         this.paymentRepo = paymentRepo;
+        this.emiPaymentRepo = emiPaymentRepo;
         this.smsService = smsService;
         this.emailService = emailService;
     }
@@ -37,6 +44,12 @@ public class NotificationService {
 
         for (Loan loan : activeLoans) {
             checkLoanOverduePayments(loan, today);
+        }
+        
+        // Check overdue EMIs
+        List<EMI> activeEmis = emiRepo.findByCompletedFalse();
+        for (EMI emi : activeEmis) {
+            checkEmiOverduePayments(emi, today);
         }
     }
 
@@ -89,30 +102,89 @@ public class NotificationService {
         }
     }
 
-    private void sendNotification(Notification notification) {
-        String borrowerName = notification.getLoan().getBorrower().getName();
-        String borrowerPhone = notification.getLoan().getBorrower().getPhone();
-        String message = notification.getMessage();
+    private void checkEmiOverduePayments(EMI emi, LocalDate today) {
+        LocalDate currentMonth = emi.getStartDate();
+        int totalOverdueMonths = 0;
+        LocalDate firstOverdueMonth = null;
         
-        // Send SMS to borrower
-        if (borrowerPhone != null && !borrowerPhone.isEmpty()) {
-            String smsMessage = String.format("Hi %s, %s. Please contact your lender to settle the payment. - Lendex", 
-                borrowerName, message);
-            smsService.sendSms(borrowerPhone, smsMessage);
+        for (int i = 0; i < emi.getTenure(); i++) {
+            if (currentMonth.isAfter(today)) break;
+            
+            final LocalDate monthToCheck = currentMonth;
+            double totalPaid = emiPaymentRepo.findByEmiOrderByDateDesc(emi).stream()
+                .filter(payment -> 
+                    payment.getDate().getYear() == monthToCheck.getYear() &&
+                    payment.getDate().getMonth() == monthToCheck.getMonth())
+                .mapToDouble(payment -> payment.getAmount().doubleValue())
+                .sum();
+            
+            if (totalPaid < emi.getEmiAmount().doubleValue()) {
+                if (firstOverdueMonth == null) {
+                    firstOverdueMonth = currentMonth;
+                }
+                totalOverdueMonths++;
+            }
+            
+            currentMonth = currentMonth.plusMonths(1);
         }
         
+        if (totalOverdueMonths > 0 && firstOverdueMonth != null) {
+            if (notificationRepo.findByEmiAndDueDate(emi, firstOverdueMonth).isEmpty()) {
+                
+                Notification notification = Notification.builder()
+                    .emi(emi)
+                    .dueDate(firstOverdueMonth)
+                    .sentDate(today)
+                    .daysPastDue(totalOverdueMonths * 30)
+                    .message(String.format("Collect %d months overdue EMI from %s starting from %s - Total: ₹%.2f", 
+                        totalOverdueMonths, emi.getBorrowerName(), 
+                        firstOverdueMonth.getMonth().name(),
+                        totalOverdueMonths * emi.getEmiAmount().doubleValue()))
+                    .sent(true)
+                    .build();
+                
+                notificationRepo.save(notification);
+                sendEmiNotification(notification);
+            }
+        }
+    }
+
+    private void sendNotification(Notification notification) {
+        String borrowerName = notification.getLoan().getBorrower().getName();
+        String message = notification.getMessage();
+        
         // Send email notification to lender (app user)
-        String lenderEmail = notification.getLoan().getBorrower().getOwner().getUsername(); // Assuming username is email
+        String lenderEmail = notification.getLoan().getBorrower().getOwner().getUsername();
         String emailSubject = "Lendex - Overdue Payment Reminder";
-        String emailMessage = String.format("Reminder: %s\n\nBorrower: %s\nPhone: %s\n\nPlease follow up for payment collection.", 
-            message, borrowerName, borrowerPhone);
+        String emailMessage = String.format("Reminder: %s\n\nBorrower: %s\n\nPlease follow up for payment collection.", 
+            message, borrowerName);
         emailService.sendEmail(lenderEmail, emailSubject, emailMessage);
         
-        System.out.println("Notifications sent for: " + borrowerName);
+        System.out.println("Loan notification sent for: " + borrowerName);
+    }
+
+    private void sendEmiNotification(Notification notification) {
+        String borrowerName = notification.getEmi().getBorrowerName();
+        String message = notification.getMessage();
+        
+        // Send email notification to lender (app user)
+        String lenderEmail = notification.getEmi().getUser().getUsername();
+        String emailSubject = "Lendex - Overdue EMI Reminder";
+        String emailMessage = String.format("EMI Reminder: %s\n\nBorrower: %s\n\nPlease follow up for EMI collection.", 
+            message, borrowerName);
+        emailService.sendEmail(lenderEmail, emailSubject, emailMessage);
+        
+        System.out.println("EMI notification sent for: " + borrowerName);
     }
 
     public List<Notification> getNotificationsForUser(String username) {
-        return notificationRepo.findByLoanBorrowerOwnerUsername(username);
+        List<Notification> loanNotifications = notificationRepo.findByLoanBorrowerOwnerUsername(username);
+        List<Notification> emiNotifications = notificationRepo.findByEmiUserUsername(username);
+        
+        List<Notification> allNotifications = new java.util.ArrayList<>(loanNotifications);
+        allNotifications.addAll(emiNotifications);
+        
+        return allNotifications;
     }
     
     @Transactional

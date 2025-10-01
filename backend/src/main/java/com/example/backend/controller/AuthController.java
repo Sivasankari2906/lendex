@@ -29,16 +29,16 @@ public class AuthController {
 
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@RequestBody Map<String,String> body) {
-        String phone = body.get("phone");
-        auth.sendOtp(phone);
-        return ResponseEntity.ok(Map.of("message", "OTP sent to your phone"));
+        String email = body.get("email");
+        auth.sendOtp(email);
+        return ResponseEntity.ok(Map.of("message", "OTP sent to your email"));
     }
 
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOtp(@RequestBody Map<String,String> body) {
-        String phone = body.get("phone");
+        String email = body.get("email");
         String otp = body.get("otp");
-        boolean isValid = auth.verifyOtp(phone, otp);
+        boolean isValid = auth.verifyOtp(email, otp);
         return ResponseEntity.ok(Map.of("valid", isValid));
     }
 

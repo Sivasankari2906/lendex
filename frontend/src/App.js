@@ -1,13 +1,56 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import Register from './components/Register';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 import Header from './components/Header';
 import './styles/App.css';
 
-export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'));
+function AuthPages() {
   const [showRegister, setShowRegister] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  const handleAuth = (newToken) => {
+    localStorage.setItem('token', newToken);
+    window.location.href = '/';
+  };
+
+  return (
+    <div className="app-container">
+      {showForgotPassword ? (
+        <ForgotPassword onBack={() => setShowForgotPassword(false)} />
+      ) : showRegister ? (
+        <div>
+          <Register onRegister={handleAuth} />
+          <div className="auth-switch">
+            Already have an account?{' '}
+            <button onClick={() => setShowRegister(false)} className="auth-link">
+              Login
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <Login 
+            onLogin={handleAuth} 
+            onForgotPassword={() => setShowForgotPassword(true)}
+          />
+          <div className="auth-switch">
+            Don't have an account?{' '}
+            <button onClick={() => setShowRegister(true)} className="auth-link">
+              Register
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MainApp() {
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [currentView, setCurrentView] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState('User');
 
@@ -44,31 +87,7 @@ export default function App() {
   }, [token]);
 
   if (!token) {
-    return (
-      <div className="app-container">
-        {showRegister ? (
-          <div>
-            <Register onRegister={handleAuth} />
-            <div className="auth-switch">
-              Already have an account?{' '}
-              <button onClick={() => setShowRegister(false)} className="auth-link">
-                Login
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <Login onLogin={handleAuth} />
-            <div className="auth-switch">
-              Don't have an account?{' '}
-              <button onClick={() => setShowRegister(true)} className="auth-link">
-                Register
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    return <Navigate to="/login" />;
   }
 
   return (
@@ -80,5 +99,17 @@ export default function App() {
       />
       <Dashboard currentView={currentView} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<AuthPages />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/" element={<MainApp />} />
+      </Routes>
+    </Router>
   );
 }

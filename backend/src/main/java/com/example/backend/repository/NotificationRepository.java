@@ -2,6 +2,7 @@ package com.example.backend.repository;
 
 import com.example.backend.entity.Notification;
 import com.example.backend.entity.Loan;
+import com.example.backend.entity.EMI;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,4 +14,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     Optional<Notification> findByLoanAndDueDate(Loan loan, LocalDate dueDate);
     List<Notification> findByLoanAndSentDate(Loan loan, LocalDate sentDate);
     List<Notification> findByDueDateLessThanEqualAndSentFalse(LocalDate date);
+    Optional<Notification> findByEmiAndDueDate(EMI emi, LocalDate dueDate);
+    List<Notification> findByEmiAndSentDate(EMI emi, LocalDate sentDate);
+    List<Notification> findByEmiUserUsername(String username);
 }

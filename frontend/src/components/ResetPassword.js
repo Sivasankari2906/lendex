@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import API from '../api';
 import '../styles/Register.css';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,9 +13,9 @@ export default function ResetPassword() {
 
   useEffect(() => {
     if (!token) {
-      navigate('/login');
+      window.location.href = '/login';
     }
-  }, [token, navigate]);
+  }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,7 +36,7 @@ export default function ResetPassword() {
     try {
       await API.post('/auth/reset-password', { token, password });
       alert('Password reset successfully! Please login with your new password.');
-      navigate('/login');
+      window.location.href = '/login';
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to reset password');
     } finally {

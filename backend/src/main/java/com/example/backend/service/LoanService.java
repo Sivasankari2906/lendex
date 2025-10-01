@@ -1,10 +1,14 @@
 package com.example.backend.service;
 
 import com.example.backend.entity.Borrower;
+import com.example.backend.entity.EMI;
+import com.example.backend.entity.EMIPayment;
 import com.example.backend.entity.Loan;
 import com.example.backend.entity.Payment;
 import com.example.backend.entity.User;
 import com.example.backend.repository.BorrowerRepository;
+import com.example.backend.repository.EMIRepository;
+import com.example.backend.repository.EMIPaymentRepository;
 import com.example.backend.repository.LoanRepository;
 import com.example.backend.repository.PaymentRepository;
 import com.example.backend.repository.UserRepository;
@@ -25,12 +29,16 @@ public class LoanService {
     private final UserRepository userRepo;
     private final BorrowerRepository borrowerRepo;
     private final PaymentRepository paymentRepo;
+    private final EMIRepository emiRepo;
+    private final EMIPaymentRepository emiPaymentRepo;
 
-    public LoanService(LoanRepository loanRepo, UserRepository userRepo, BorrowerRepository borrowerRepo, PaymentRepository paymentRepo) {
+    public LoanService(LoanRepository loanRepo, UserRepository userRepo, BorrowerRepository borrowerRepo, PaymentRepository paymentRepo, EMIRepository emiRepo, EMIPaymentRepository emiPaymentRepo) {
         this.loanRepo = loanRepo;
         this.userRepo = userRepo;
         this.borrowerRepo = borrowerRepo;
         this.paymentRepo = paymentRepo;
+        this.emiRepo = emiRepo;
+        this.emiPaymentRepo = emiPaymentRepo;
     }
 
     @Transactional
@@ -79,6 +87,19 @@ public class LoanService {
         User user = userRepo.findByUsername(username).orElseThrow();
         return borrowerRepo.findByOwner(user);
     }
+    
+    public List<Map<String, Object>> getBorrowersWithLoanCount(String username) {
+        User user = userRepo.findByUsername(username).orElseThrow();
+        List<Borrower> borrowers = borrowerRepo.findByOwner(user);
+        return borrowers.stream().map(borrower -> {
+            Map<String, Object> borrowerData = new HashMap<>();
+            borrowerData.put("id", borrower.getId());
+            borrowerData.put("name", borrower.getName());
+            borrowerData.put("phone", borrower.getPhone());
+            borrowerData.put("loanCount", borrower.getLoans().size());
+            return borrowerData;
+        }).collect(java.util.stream.Collectors.toList());
+    }
 
     @Transactional
     public Borrower addBorrowerForUser(Borrower b, String username) {
@@ -90,29 +111,39 @@ public class LoanService {
 
 
     @Transactional
-    public Payment recordPayment(Long loanId, BigDecimal amount, LocalDate date, String note, String username) {
+    public Payment recordPayment(Long loanId, BigDecimal amount, LocalDate monthDate, String note, String username) {
         Loan loan = loanRepo.findById(loanId).orElseThrow();
         if (!loan.getBorrower().getOwner().getUsername().equals(username)) {
             throw new AccessDeniedException("not-owner");
         }
-        Payment p = Payment.builder().amount(amount).date(date).note(note).loan(loan).build();
+        
+        // Extract actual payment date from note if present, otherwise use today
+        LocalDate actualPaymentDate = LocalDate.now();
+        if (note.contains("Recorded on ")) {
+            try {
+                String dateStr = note.substring(note.indexOf("Recorded on ") + 12, note.indexOf("Recorded on ") + 22);
+                actualPaymentDate = LocalDate.parse(dateStr);
+            } catch (Exception e) {
+                // Use default if parsing fails
+            }
+        }
+        
+        // Format interest month as "YYYY-MM"
+        String interestMonth = monthDate.getYear() + "-" + String.format("%02d", monthDate.getMonthValue());
+        
+        Payment p = Payment.builder()
+            .amount(amount)
+            .date(monthDate) // Month assignment date (for filtering)
+            .paymentDate(actualPaymentDate) // Actual payment date (for display)
+            .interestMonth(interestMonth)
+            .note(note)
+            .loan(loan)
+            .build();
         paymentRepo.save(p);
 
-        // Apply payment to interest first (for simplicity we treat payment as reducing principal)
-        BigDecimal remaining = loan.getRemainingPrincipal().subtract(amount);
-        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-            loan.setRemainingPrincipal(BigDecimal.ZERO);
-            loan.setRepaid(true);
-        } else {
-            loan.setRemainingPrincipal(remaining);
-        }
-
-        // advance due date by 1 month if not repaid
-        if (!loan.isRepaid()) {
-            loan.setNextDueDate(loan.getNextDueDate().plusMonths(1));
-        }
-
-        loanRepo.save(loan);
+        // DO NOT modify principal - payments only track interest
+        // Principal remains unchanged and can only be modified by user editing the loan
+        
         return p;
     }
 
@@ -186,19 +217,13 @@ public class LoanService {
             throw new AccessDeniedException("not-owner");
         }
         loan.setPrincipal(principal);
+        // Keep remainingPrincipal same as principal - only user can change principal amount
         loan.setRemainingPrincipal(principal);
         loan.setMonthlyInterestRate(monthlyInterestRate);
         return loanRepo.save(loan);
     }
 
-    @Transactional
-    public void deleteLoan(Long loanId, String username) {
-        Loan loan = loanRepo.findById(loanId).orElseThrow();
-        if (!loan.getBorrower().getOwner().getUsername().equals(username)) {
-            throw new AccessDeniedException("not-owner");
-        }
-        loanRepo.delete(loan);
-    }
+
 
     @Transactional
     public Borrower updateBorrower(Long borrowerId, Borrower updates, String username) {
@@ -241,6 +266,15 @@ public class LoanService {
             return isLoanOverdue(loan, date);
         }).collect(java.util.stream.Collectors.toList());
     }
+
+    public List<EMI> getOverdueEmisForUser(String username, LocalDate date) {
+        User user = userRepo.findByUsername(username).orElseThrow();
+        List<EMI> allEmis = emiRepo.findByUser(user);
+        
+        return allEmis.stream().filter(emi -> {
+            return isEmiOverdue(emi, date);
+        }).collect(java.util.stream.Collectors.toList());
+    }
     
     private boolean isLoanOverdue(Loan loan, LocalDate date) {
         LocalDate trackingStart = loan.getTrackingStartDate() != null ? 
@@ -270,6 +304,34 @@ public class LoanService {
                 long monthsOverdue = java.time.temporal.ChronoUnit.MONTHS.between(currentMonth, date);
                 // If overdue > 1 month, always notify. If < 1 month, only notify after due date
                 if (monthsOverdue > 1 || currentMonth.plusMonths(1).isBefore(date)) {
+                    return true;
+                }
+            }
+            
+            currentMonth = currentMonth.plusMonths(1);
+        }
+        
+        return false;
+    }
+
+    private boolean isEmiOverdue(EMI emi, LocalDate date) {
+        if (emi.isCompleted()) return false;
+        
+        LocalDate currentMonth = emi.getStartDate();
+        
+        for (int i = 0; i < emi.getTenure(); i++) {
+            if (currentMonth.isAfter(date)) break;
+            
+            final LocalDate monthToCheck = currentMonth;
+            double totalPaid = emiPaymentRepo.findByEmiOrderByDateDesc(emi).stream()
+                .filter(payment -> 
+                    payment.getDate().getYear() == monthToCheck.getYear() &&
+                    payment.getDate().getMonth() == monthToCheck.getMonth())
+                .mapToDouble(payment -> payment.getAmount().doubleValue())
+                .sum();
+            
+            if (totalPaid < emi.getEmiAmount().doubleValue()) {
+                if (currentMonth.plusMonths(1).isBefore(date)) {
                     return true;
                 }
             }

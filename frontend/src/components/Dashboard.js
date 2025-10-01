@@ -6,6 +6,7 @@ import DashboardStats from './DashboardStats';
 import PaymentsPage from './PaymentsPage';
 import NotificationPanel from './NotificationPanel';
 import BorrowerManagement from './BorrowerManagement';
+import EMIManagement from './EMIManagement';
 import UserProfile from './UserProfile';
 import SettingsPage from './SettingsPage';
 import '../styles/Dashboard.css';
@@ -13,6 +14,7 @@ import '../styles/Dashboard.css';
 function Dashboard({ currentView }){
   const [loans, setLoans] = useState([]);
   const [reminders, setReminders] = useState([]);
+  const [emiReminders, setEmiReminders] = useState([]);
   const [showLoanForm, setShowLoanForm] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [activeTab, setActiveTab] = useState('active');
@@ -38,21 +40,33 @@ function Dashboard({ currentView }){
     }
   };
 
+  const loadEmiReminders = async () => {
+    try {
+      const { data } = await API.get('/emi-reminders');
+      setEmiReminders(data);
+    } catch (err) {
+      console.error('Failed to load EMI reminders:', err);
+      setEmiReminders([]);
+    }
+  };
+
   useEffect(() => {
     load();
     loadReminders();
+    loadEmiReminders();
     requestNotificationPermission();
     const interval = setInterval(() => {
       loadReminders();
+      loadEmiReminders();
     }, 15000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
-    if (reminders.length > 0) {
+    if (reminders.length > 0 || emiReminders.length > 0) {
       checkForNewOverduePayments();
     }
-  }, [reminders]);
+  }, [reminders, emiReminders]);
 
   const requestNotificationPermission = async () => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -77,9 +91,10 @@ function Dashboard({ currentView }){
             
             while (currentMonth < today) {
               const monthKey = currentMonth.toISOString().slice(0, 7); // YYYY-MM format
-              const monthPayments = payments.filter(payment => 
-                payment.date.startsWith(monthKey)
-              );
+              const monthPayments = payments.filter(payment => {
+                const paymentMonth = payment.date.substring(0, 7);
+                return paymentMonth === monthKey;
+              });
               const totalPaid = monthPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
               
               if (totalPaid < (monthlyInterest - 0.01)) { // Small tolerance for rounding
@@ -96,9 +111,10 @@ function Dashboard({ currentView }){
               
               while (currentMonth2 < today) {
                 const monthKey = currentMonth2.toISOString().slice(0, 7);
-                const monthPayments = payments.filter(payment => 
-                  payment.date.startsWith(monthKey)
-                );
+                const monthPayments = payments.filter(payment => {
+                  const paymentMonth = payment.date.substring(0, 7);
+                  return paymentMonth === monthKey;
+                });
                 const totalPaid = monthPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
                 
                 if (totalPaid < (monthlyInterest - 0.01)) { // Small tolerance
@@ -125,6 +141,56 @@ function Dashboard({ currentView }){
             }
           } catch (err) {
             console.error('Failed to load payment data for notifications');
+          }
+        });
+        
+        // EMI notifications
+        emiReminders.forEach(async (emi, index) => {
+          try {
+            const { data: payments } = await API.get(`/emis/${emi.id}/payments`);
+            const startDate = new Date(emi.startDate);
+            const today = new Date();
+            
+            let currentMonth = new Date(startDate);
+            let unpaidMonths = 0;
+            let totalOverdue = 0;
+            
+            for (let i = 0; i < emi.tenure; i++) {
+              if (currentMonth > today) break;
+              
+              const monthKey = currentMonth.toISOString().slice(0, 7);
+              const monthPayments = payments.filter(payment => {
+                const paymentMonth = payment.date.substring(0, 7);
+                return paymentMonth === monthKey;
+              });
+              const totalPaid = monthPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+              
+              if (totalPaid < (emi.emiAmount - 0.01)) {
+                unpaidMonths++;
+                totalOverdue += Math.max(0, emi.emiAmount - totalPaid);
+              }
+              
+              currentMonth.setMonth(currentMonth.getMonth() + 1);
+            }
+            
+            if (unpaidMonths > 0) {
+              setTimeout(() => {
+                const notification = new Notification(`Lendex - Collect EMI from ${emi.borrowerName}`, {
+                  body: `${unpaidMonths} month(s) overdue - Amount: ₹${totalOverdue.toFixed(0)}`,
+                  icon: '/favicon.ico',
+                  tag: `overdue-emi-${emi.id}`,
+                  requireInteraction: true
+                });
+                
+                notification.onclick = () => {
+                  window.focus();
+                  setShowNotifications(true);
+                  notification.close();
+                };
+              }, (reminders.length + index) * 2000);
+            }
+          } catch (err) {
+            console.error('Failed to load EMI payment data for notifications');
           }
         });
       }
@@ -189,6 +255,8 @@ function Dashboard({ currentView }){
         );
       case 'borrowers':
         return <BorrowerManagement />;
+      case 'emi':
+        return <EMIManagement />;
       case 'settings':
         return <SettingsPage />;
       default:
@@ -197,10 +265,18 @@ function Dashboard({ currentView }){
             <h2>Dashboard</h2>
             <DashboardStats loans={loans} reminders={reminders} />
             <div className="dashboard-section">
-              <h3>Reminders ({reminders.length})</h3>
-              {reminders.length === 0 ? <p>No overdue payments</p> : reminders.map(l => 
+              <h3>Loan Reminders ({reminders.length})</h3>
+              {reminders.length === 0 ? <p>No overdue loan payments</p> : reminders.map(l => 
                 <div key={l.id} className="reminder-item">
                   <strong>{l.borrower?.name || 'Unknown'}</strong> — due {new Date(l.nextDueDate).toLocaleDateString()} — loan ₹{l.principal}
+                </div>
+              )}
+            </div>
+            <div className="dashboard-section">
+              <h3>EMI Reminders ({emiReminders.length})</h3>
+              {emiReminders.length === 0 ? <p>No overdue EMI payments</p> : emiReminders.map(e => 
+                <div key={e.id} className="reminder-item">
+                  <strong>{e.borrowerName}</strong> — EMI ₹{e.emiAmount} — Total ₹{e.totalAmount}
                 </div>
               )}
             </div>
@@ -221,11 +297,11 @@ function Dashboard({ currentView }){
       <button 
         className="notification-bell"
         onClick={() => setShowNotifications(!showNotifications)}
-        title={`${reminders.length} overdue payments`}
+        title={`${reminders.length + emiReminders.length} overdue payments`}
       >
         🔔
-        {reminders.length > 0 && (
-          <span className="notification-badge">{reminders.length}</span>
+        {(reminders.length + emiReminders.length) > 0 && (
+          <span className="notification-badge">{reminders.length + emiReminders.length}</span>
         )}
       </button>
       {currentView === 'loans' && activeTab === 'active' && (
@@ -247,6 +323,7 @@ function Dashboard({ currentView }){
         show={showNotifications}
         onClose={() => setShowNotifications(false)}
         reminders={reminders}
+        emiReminders={emiReminders}
       />
       {showUserProfile && (
         <UserProfile onClose={() => setShowUserProfile(false)} />
