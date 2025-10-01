@@ -1,0 +1,102 @@
+.register-container {
+  max-width: 400px;
+  margin: 3rem auto;
+  padding: 0;
+}
+
+.register-form {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 2.5rem;
+}
+
+.register-form h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--gray-900);
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+
+.register-form .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.register-form .form-input {
+  width: 100%;
+  padding: 0.875rem;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.register-form .form-input:focus {
+  outline: none;
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px rgb(5 150 105 / 0.1);
+}
+
+.register-button {
+  width: 100%;
+  padding: 0.875rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: var(--success);
+  color: var(--white);
+  transition: all 0.2s ease;
+}
+
+.register-button:hover {
+  background-color: var(--success-light);
+  transform: translateY(-1px);
+}
+
+.register-error {
+  color: var(--danger);
+  margin-bottom: 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  padding: 0.75rem;
+  background-color: rgb(220 38 38 / 0.1);
+  border-radius: var(--radius);
+  border: 1px solid rgb(220 38 38 / 0.2);
+}
+
+.phone-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.phone-input-group .form-input {
+  flex: 1;
+}
+
+.verification-badge {
+  color: var(--success);
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.otp-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.otp-input-group .form-input {
+  flex: 1;
+}
+
+.help-text {
+  color: var(--gray-500);
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  display: block;
+}

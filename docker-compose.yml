@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:15
+    # restart: always
+    environment:
+      POSTGRES_DB: lendex
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Shiv@29
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    restart: on-failure
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lendex
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: Shiv@29
+      Lendex_JWT_SECRET: "wt34456ryjtugykhui@%uy58809ltfvbnm50l98r68d5touhjk0op946rty"
+
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    restart: on-failure
+    environment:
+      REACT_APP_API_URL: http://192.168.235.201:8080/api
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
