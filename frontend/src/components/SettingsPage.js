@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import API from '../api';
+import '../styles/Settings.css';
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState({ username: '', fullName: '', email: '', phone: '' });
@@ -32,10 +33,16 @@ export default function SettingsPage() {
       const { data: loans } = await API.get('/loans');
       const { data: borrowers } = await API.get('/borrowers');
       const { data: reminders } = await API.get('/reminders');
+      const { data: emis } = await API.get('/emis');
+      const { data: emiReminders } = await API.get('/emi-reminders');
       
       const totalPrincipal = loans.reduce((sum, loan) => sum + parseFloat(loan.principal), 0);
       const activeLoans = loans.filter(l => !l.repaid);
       const closedLoans = loans.filter(l => l.repaid);
+      
+      const totalEmiAmount = emis.reduce((sum, emi) => sum + parseFloat(emi.totalAmount), 0);
+      const activeEmis = emis.filter(e => !e.completed);
+      const closedEmis = emis.filter(e => e.completed);
       
       setStats({
         totalLoans: loans.length,
@@ -43,7 +50,12 @@ export default function SettingsPage() {
         closedLoans: closedLoans.length,
         totalBorrowers: borrowers.length,
         totalPrincipal: totalPrincipal,
-        overduePayments: reminders.length
+        overduePayments: reminders.length,
+        totalEmis: emis.length,
+        activeEmis: activeEmis.length,
+        closedEmis: closedEmis.length,
+        totalEmiAmount: totalEmiAmount,
+        overdueEmis: emiReminders.length
       });
     } catch (err) {
       console.error('Failed to load stats');
@@ -79,21 +91,25 @@ export default function SettingsPage() {
     try {
       const { data: loans } = await API.get('/loans');
       const { data: borrowers } = await API.get('/borrowers');
+      const { data: emis } = await API.get('/emis');
       
       const exportData = {
         loans,
         borrowers,
+        emis,
         exportDate: new Date().toISOString(),
-        user: profile.username
+        user: profile.username,
+        version: '1.0.0'
       };
       
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lendex-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `lendex-backup-${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      alert('Data exported successfully!');
     } catch (err) {
       alert('Failed to export data');
     }
@@ -202,7 +218,19 @@ export default function SettingsPage() {
                 <input
                   type="checkbox"
                   checked={preferences.notificationsEnabled}
-                  onChange={(e) => setPreferences({...preferences, notificationsEnabled: e.target.checked})}
+                  onChange={async (e) => {
+                    if (e.target.checked && 'Notification' in window) {
+                      const permission = await Notification.requestPermission();
+                      if (permission === 'granted') {
+                        setPreferences({...preferences, notificationsEnabled: true});
+                      } else {
+                        e.target.checked = false;
+                        alert('Please allow notifications in your browser to enable this feature');
+                      }
+                    } else {
+                      setPreferences({...preferences, notificationsEnabled: e.target.checked});
+                    }
+                  }}
                 />
                 Enable browser notifications
               </label>
@@ -250,13 +278,17 @@ export default function SettingsPage() {
             
             <div className="stats-grid">
               <div className="stat-card">
-                <h4>Your Data Summary</h4>
-                <div className="stat-item">Total Loans: {stats.totalLoans}</div>
-                <div className="stat-item">Active Loans: {stats.activeLoans}</div>
-                <div className="stat-item">Closed Loans: {stats.closedLoans}</div>
-                <div className="stat-item">Total Borrowers: {stats.totalBorrowers}</div>
-                <div className="stat-item">Total Principal: ₹{stats.totalPrincipal?.toFixed(2)}</div>
-                <div className="stat-item">Overdue Payments: {stats.overduePayments}</div>
+                <h4>📊 Your Portfolio Summary</h4>
+                <div className="stat-item"><span>Total Loans:</span> <span>{stats.totalLoans || 0}</span></div>
+                <div className="stat-item"><span>Active Loans:</span> <span>{stats.activeLoans || 0}</span></div>
+                <div className="stat-item"><span>Closed Loans:</span> <span>{stats.closedLoans || 0}</span></div>
+                <div className="stat-item"><span>Total EMIs:</span> <span>{stats.totalEmis || 0}</span></div>
+                <div className="stat-item"><span>Active EMIs:</span> <span>{stats.activeEmis || 0}</span></div>
+                <div className="stat-item"><span>Total Borrowers:</span> <span>{stats.totalBorrowers || 0}</span></div>
+                <div className="stat-item"><span>Loan Principal:</span> <span>₹{stats.totalPrincipal?.toLocaleString() || '0'}</span></div>
+                <div className="stat-item"><span>EMI Amount:</span> <span>₹{stats.totalEmiAmount?.toLocaleString() || '0'}</span></div>
+                <div className="stat-item"><span>Overdue Loans:</span> <span>{stats.overduePayments || 0}</span></div>
+                <div className="stat-item"><span>Overdue EMIs:</span> <span>{stats.overdueEmis || 0}</span></div>
               </div>
             </div>
             
@@ -292,21 +324,24 @@ export default function SettingsPage() {
               </div>
               
               <div className="features-list">
-                <h4>Features</h4>
+                <h4>🚀 Features</h4>
                 <ul>
                   <li>✓ Loan tracking and management</li>
+                  <li>✓ EMI collection tracking</li>
                   <li>✓ Payment scheduling and recording</li>
                   <li>✓ Borrower contact management</li>
                   <li>✓ Overdue payment notifications</li>
                   <li>✓ Interest calculations</li>
+                  <li>✓ EMI calculator</li>
                   <li>✓ Data export and backup</li>
+                  <li>✓ Professional reporting</li>
                 </ul>
               </div>
               
               <div className="support-info">
                 <h4>Support</h4>
                 <p>For technical support or feature requests:</p>
-                <p>Email: support@lendex.app</p>
+                <p>Email: lendex.team@gmail.com</p>
                 <p>Version: 1.0.0</p>
                 <p>Last Updated: December 2024</p>
               </div>

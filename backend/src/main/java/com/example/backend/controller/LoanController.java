@@ -1,6 +1,7 @@
 package com.example.backend.controller;
 
 import com.example.backend.entity.Borrower;
+import com.example.backend.entity.EMI;
 import com.example.backend.entity.Loan;
 import com.example.backend.entity.Payment;
 import com.example.backend.service.LoanService;
@@ -28,9 +29,9 @@ public class LoanController {
     }
 
     @GetMapping("/borrowers")
-    public ResponseEntity<List<Borrower>> getBorrowers(Principal principal) {
+    public ResponseEntity<List<Map<String, Object>>> getBorrowers(Principal principal) {
         String username = principal.getName();
-        return ResponseEntity.ok(loanService.getBorrowersForUser(username));
+        return ResponseEntity.ok(loanService.getBorrowersWithLoanCount(username));
     }
 
     @PostMapping("/borrowers")
@@ -61,12 +62,18 @@ public class LoanController {
         return ResponseEntity.ok(loanService.getDueLoansForUserExcludingPostponed(username, LocalDate.now()));
     }
 
+    @GetMapping("/emi-reminders")
+    public ResponseEntity<List<EMI>> getEmiReminders(Principal principal) {
+        String username = principal.getName();
+        return ResponseEntity.ok(loanService.getOverdueEmisForUser(username, LocalDate.now()));
+    }
+
     @PostMapping("/loans/{loanId}/payments")
     public ResponseEntity<Payment> recordPayment(@PathVariable Long loanId, @RequestBody Map<String,String> body, Principal principal){
         BigDecimal amount = new BigDecimal(body.get("amount"));
-        LocalDate date = LocalDate.parse(body.getOrDefault("date", LocalDate.now().toString()));
+        LocalDate userDate = LocalDate.parse(body.getOrDefault("date", LocalDate.now().toString()));
         String note = body.getOrDefault("note", "");
-        return ResponseEntity.ok(loanService.recordPayment(loanId, amount, date, note, principal.getName()));
+        return ResponseEntity.ok(loanService.recordPayment(loanId, amount, userDate, note, principal.getName()));
     }
 
     @GetMapping("/loans/{loanId}")
@@ -110,11 +117,7 @@ public class LoanController {
         return ResponseEntity.ok(loanService.updateLoan(loanId, principal_amount, rate, principal.getName()));
     }
 
-    @DeleteMapping("/loans/{loanId}")
-    public ResponseEntity<Void> deleteLoan(@PathVariable Long loanId, Principal principal){
-        loanService.deleteLoan(loanId, principal.getName());
-        return ResponseEntity.ok().build();
-    }
+
 
     @PutMapping("/borrowers/{borrowerId}")
     public ResponseEntity<Borrower> updateBorrower(@PathVariable Long borrowerId, @RequestBody Borrower borrower, Principal principal){

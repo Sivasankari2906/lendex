@@ -57,7 +57,7 @@ export default function BorrowerManagement() {
             <h4>{borrower.name}</h4>
             <div className="loan-info">
               <div>Phone: {borrower.phone}</div>
-              <div>Loans: {borrower.loans?.length || 0}</div>
+              <div>Loans: {borrower.loanCount || 0}</div>
             </div>
             <div className="loan-actions">
               <button className="btn-small btn-edit" onClick={() => handleEdit(borrower)}>

@@ -1,23 +1,16 @@
 import React, { useState } from 'react';
 import EditLoanForm from './EditLoanForm';
+import LoanDetails from './LoanDetails';
 import API from '../api';
 
 export default function LoanCard({ loan, onUpdate, onPayments }) {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showPostponeInput, setShowPostponeInput] = useState(false);
+  const [showLoanDetails, setShowLoanDetails] = useState(false);
   const [postponeDays, setPostponeDays] = useState('');
   const isOverdue = new Date(loan.nextDueDate) < new Date() && !loan.repaid;
 
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this loan?')) {
-      try {
-        await API.delete(`/loans/${loan.id}`);
-        onUpdate();
-      } catch (err) {
-        alert('Failed to delete loan');
-      }
-    }
-  };
+
 
   const handleClose = async () => {
     if (window.confirm('Are you sure you want to close this loan?')) {
@@ -62,7 +55,13 @@ export default function LoanCard({ loan, onUpdate, onPayments }) {
           × Close
         </button>
       )}
-      <h4>{loan.borrower?.name || 'Unknown Borrower'}</h4>
+      <h4 
+        onClick={() => setShowLoanDetails(true)}
+        style={{ cursor: 'pointer', textDecoration: 'underline' }}
+        title="Click to view details"
+      >
+        {loan.borrower?.name || 'Unknown Borrower'}
+      </h4>
       <div className="loan-info">
         <div className="loan-amount">₹{loan.principal}</div>
         <div>Interest: {loan.monthlyInterestRate}% monthly</div>
@@ -85,9 +84,7 @@ export default function LoanCard({ loan, onUpdate, onPayments }) {
           <button className="btn-small btn-edit" onClick={() => setShowEditForm(true)}>
             Edit
           </button>
-          <button className="btn-small btn-delete" onClick={handleDelete}>
-            Delete
-          </button>
+
         </div>
       )}
       {showPostponeInput && (
@@ -113,6 +110,12 @@ export default function LoanCard({ loan, onUpdate, onPayments }) {
           loan={loan}
           onClose={() => setShowEditForm(false)}
           onLoanUpdated={onUpdate}
+        />
+      )}
+      {showLoanDetails && (
+        <LoanDetails 
+          loanId={loan.id}
+          onClose={() => setShowLoanDetails(false)}
         />
       )}
     </div>

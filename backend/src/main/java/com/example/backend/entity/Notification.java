@@ -19,6 +19,10 @@ public class Notification {
     @JoinColumn(name = "loan_id")
     private Loan loan;
 
+    @ManyToOne
+    @JoinColumn(name = "emi_id")
+    private EMI emi;
+
     private LocalDate dueDate;
     private LocalDate sentDate;
     private String message;

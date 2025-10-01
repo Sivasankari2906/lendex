@@ -13,19 +13,19 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Payment {
+public class EMIPayment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     private BigDecimal amount;
-    private LocalDate date; // User-specified date for which month this payment is for
-    private LocalDate paymentDate; // Actual date when payment was recorded
+    private LocalDate date; // Month assignment date
+    private LocalDate paymentDate; // Actual payment date
     private String note;
-    private String interestMonth; // Format: "2024-06" for June 2024
+    private String emiMonth; // Format: "2024-06"
 
     @ManyToOne
-    @JoinColumn(name = "loan_id")
+    @JoinColumn(name = "emi_id")
     @JsonBackReference
-    private Loan loan;
+    private EMI emi;
 }

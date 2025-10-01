@@ -11,6 +11,11 @@ export default function Register({ onRegister }) {
   const [loading, setLoading] = useState(false);
 
   const sendOtp = async () => {
+    if (!form.email || !form.email.includes('@')) {
+      setError('Please enter a valid email address first');
+      return;
+    }
+    
     if (!form.phone || form.phone.length < 10) {
       setError('Please enter a valid phone number');
       return;
@@ -18,7 +23,7 @@ export default function Register({ onRegister }) {
     
     setLoading(true);
     try {
-      await API.post('/auth/send-otp', { phone: form.phone });
+      await API.post('/auth/send-otp', { email: form.email });
       setOtpSent(true);
       setError('');
     } catch (err) {
@@ -36,7 +41,7 @@ export default function Register({ onRegister }) {
     
     setLoading(true);
     try {
-      const { data } = await API.post('/auth/verify-otp', { phone: form.phone, otp });
+      const { data } = await API.post('/auth/verify-otp', { email: form.email, otp });
       if (data.valid) {
         setPhoneVerified(true);
         setError('');
@@ -120,7 +125,7 @@ export default function Register({ onRegister }) {
                 className="form-input"
                 disabled={phoneVerified}
               />
-              {form.phone && !phoneVerified && (
+              {form.phone && form.email && !phoneVerified && (
                 <button
                   type="button"
                   onClick={sendOtp}
@@ -140,7 +145,7 @@ export default function Register({ onRegister }) {
               <div className="otp-input-group">
                 <input
                   type="text"
-                  placeholder="Enter 6-digit OTP sent to your phone"
+                  placeholder="Enter 6-digit OTP sent to your email"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   className="form-input"
@@ -155,7 +160,7 @@ export default function Register({ onRegister }) {
                   {loading ? 'Verifying...' : 'Verify'}
                 </button>
               </div>
-              <small className="help-text">Check your phone for the verification code</small>
+              <small className="help-text">Check your email for the verification code</small>
             </div>
           )}
           {error && <div className="register-error">{error}</div>}
