@@ -20,34 +20,49 @@
 }
 
 .stat-card {
-  background: white !important;
   padding: 1.5rem;
   text-align: center;
-  border: 1px solid black !important;
-  box-shadow: none !important;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 .stat-value {
   font-size: 2rem;
   font-weight: 800;
   margin-bottom: 0.5rem;
-  color: black !important;
-  background: white !important;
+  color: white;
 }
 
 .stat-label {
-  color: black !important;
+  color: rgba(255, 255, 255, 0.9);
   font-size: 0.875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 500;
-  background: white !important;
 }
 
-.stat-total { color: black !important; background: white !important; }
-.stat-principal { color: black !important; background: white !important; }
-.stat-interest { color: black !important; background: white !important; }
-.stat-overdue { color: black !important; background: white !important; }
+/* Colorful stat card backgrounds */
+.stat-card:nth-child(1) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-card:nth-child(2) {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.stat-card:nth-child(3) {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.stat-card:nth-child(4) {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
 
 /* Dashboard Sections */
 .dashboard-section {
@@ -455,6 +470,14 @@
   padding: 0.5rem;
   background: white;
   border-radius: 4px;
+}
+
+/* Form textarea styling */
+.form-input[rows] {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+  line-height: 1.4;
 }
 
 /* Responsive Design */

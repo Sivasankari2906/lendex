@@ -40,8 +40,11 @@ public class NotificationService {
     @Transactional
     public void checkOverduePayments() {
         LocalDate today = LocalDate.now();
+        
+        // Clean up old notifications (older than 30 days)
+        cleanupOldNotifications(today.minusDays(30));
+        
         List<Loan> activeLoans = loanRepo.findByRepaidFalse();
-
         for (Loan loan : activeLoans) {
             checkLoanOverduePayments(loan, today);
         }
@@ -52,60 +55,78 @@ public class NotificationService {
             checkEmiOverduePayments(emi, today);
         }
     }
+    
+    @Transactional
+    public void cleanupOldNotifications(LocalDate cutoffDate) {
+        List<Notification> oldNotifications = notificationRepo.findBySentDateBefore(cutoffDate);
+        if (!oldNotifications.isEmpty()) {
+            notificationRepo.deleteAll(oldNotifications);
+            System.out.println("Cleaned up " + oldNotifications.size() + " old notifications");
+        }
+    }
 
     private void checkLoanOverduePayments(Loan loan, LocalDate today) {
+        // Skip if notification is postponed
+        if (loan.getNotificationPostponedUntil() != null && 
+            loan.getNotificationPostponedUntil().isAfter(today)) {
+            return;
+        }
+        
+        // Check if notification already sent today
+        if (!notificationRepo.findByLoanAndSentDate(loan, today).isEmpty()) {
+            return;
+        }
+        
         LocalDate trackingStart = loan.getTrackingStartDate() != null ? 
             loan.getTrackingStartDate() : loan.getIssuedDate();
         
         LocalDate currentMonth = trackingStart;
         int totalOverdueMonths = 0;
-        LocalDate firstOverdueMonth = null;
+        double totalOverdueAmount = 0;
+        double monthlyInterest = loan.getRemainingPrincipal().doubleValue() * loan.getMonthlyInterestRate() / 100;
         
         while (currentMonth.isBefore(today.withDayOfMonth(1))) {
-            // Check if payment exists for this month
             final LocalDate monthToCheck = currentMonth;
-            boolean hasPayment = paymentRepo.findByLoanOrderByDateDesc(loan).stream()
-                .anyMatch(payment -> 
+            double totalPaid = paymentRepo.findByLoanOrderByDateDesc(loan).stream()
+                .filter(payment -> 
                     payment.getDate().getYear() == monthToCheck.getYear() &&
-                    payment.getDate().getMonth() == monthToCheck.getMonth());
+                    payment.getDate().getMonth() == monthToCheck.getMonth())
+                .mapToDouble(payment -> payment.getAmount().doubleValue())
+                .sum();
             
-            if (!hasPayment) {
-                if (firstOverdueMonth == null) {
-                    firstOverdueMonth = currentMonth;
-                }
+            if (totalPaid < (monthlyInterest - 0.01)) {
                 totalOverdueMonths++;
+                totalOverdueAmount += (monthlyInterest - totalPaid);
             }
             
             currentMonth = currentMonth.plusMonths(1);
         }
         
-        if (totalOverdueMonths > 0 && firstOverdueMonth != null) {
-            // Check if notification already sent for this overdue period
-            String notificationKey = loan.getId() + "-" + firstOverdueMonth.toString();
-            if (notificationRepo.findByLoanAndDueDate(loan, firstOverdueMonth).isEmpty()) {
-                
-                Notification notification = Notification.builder()
-                    .loan(loan)
-                    .dueDate(firstOverdueMonth)
-                    .sentDate(today)
-                    .daysPastDue(totalOverdueMonths * 30) // Approximate days
-                    .message(String.format("Collect %d months overdue payments from %s starting from %s - Total: ₹%.2f", 
-                        totalOverdueMonths, loan.getBorrower().getName(), 
-                        firstOverdueMonth.getMonth().name(),
-                        totalOverdueMonths * loan.getRemainingPrincipal().doubleValue() * loan.getMonthlyInterestRate() / 100))
-                    .sent(true)
-                    .build();
-                
-                notificationRepo.save(notification);
-                sendNotification(notification);
-            }
+        if (totalOverdueMonths > 0) {
+            Notification notification = Notification.builder()
+                .loan(loan)
+                .dueDate(trackingStart)
+                .sentDate(today)
+                .daysPastDue(totalOverdueMonths * 30)
+                .message(String.format("Collect %d months overdue payments from %s - Total: ₹%.0f", 
+                    totalOverdueMonths, loan.getBorrower().getName(), totalOverdueAmount))
+                .sent(true)
+                .build();
+            
+            notificationRepo.save(notification);
+            sendNotification(notification);
         }
     }
 
     private void checkEmiOverduePayments(EMI emi, LocalDate today) {
+        // Check if notification already sent today
+        if (!notificationRepo.findByEmiAndSentDate(emi, today).isEmpty()) {
+            return;
+        }
+        
         LocalDate currentMonth = emi.getStartDate();
         int totalOverdueMonths = 0;
-        LocalDate firstOverdueMonth = null;
+        double totalOverdueAmount = 0;
         
         for (int i = 0; i < emi.getTenure(); i++) {
             if (currentMonth.isAfter(today)) break;
@@ -118,34 +139,27 @@ public class NotificationService {
                 .mapToDouble(payment -> payment.getAmount().doubleValue())
                 .sum();
             
-            if (totalPaid < emi.getEmiAmount().doubleValue()) {
-                if (firstOverdueMonth == null) {
-                    firstOverdueMonth = currentMonth;
-                }
+            if (totalPaid < (emi.getEmiAmount().doubleValue() - 0.01)) {
                 totalOverdueMonths++;
+                totalOverdueAmount += (emi.getEmiAmount().doubleValue() - totalPaid);
             }
             
             currentMonth = currentMonth.plusMonths(1);
         }
         
-        if (totalOverdueMonths > 0 && firstOverdueMonth != null) {
-            if (notificationRepo.findByEmiAndDueDate(emi, firstOverdueMonth).isEmpty()) {
-                
-                Notification notification = Notification.builder()
-                    .emi(emi)
-                    .dueDate(firstOverdueMonth)
-                    .sentDate(today)
-                    .daysPastDue(totalOverdueMonths * 30)
-                    .message(String.format("Collect %d months overdue EMI from %s starting from %s - Total: ₹%.2f", 
-                        totalOverdueMonths, emi.getBorrowerName(), 
-                        firstOverdueMonth.getMonth().name(),
-                        totalOverdueMonths * emi.getEmiAmount().doubleValue()))
-                    .sent(true)
-                    .build();
-                
-                notificationRepo.save(notification);
-                sendEmiNotification(notification);
-            }
+        if (totalOverdueMonths > 0) {
+            Notification notification = Notification.builder()
+                .emi(emi)
+                .dueDate(emi.getStartDate())
+                .sentDate(today)
+                .daysPastDue(totalOverdueMonths * 30)
+                .message(String.format("Collect %d months overdue EMI from %s - Total: ₹%.0f", 
+                    totalOverdueMonths, emi.getBorrowerName(), totalOverdueAmount))
+                .sent(true)
+                .build();
+            
+            notificationRepo.save(notification);
+            sendEmiNotification(notification);
         }
     }
 

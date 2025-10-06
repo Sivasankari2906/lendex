@@ -23,6 +23,9 @@ public class EMIPayment {
     private LocalDate paymentDate; // Actual payment date
     private String note;
     private String emiMonth; // Format: "2024-06"
+    
+    // remarks or additional notes about the EMI payment
+    private String remarks;
 
     @ManyToOne
     @JoinColumn(name = "emi_id")

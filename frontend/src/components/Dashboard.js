@@ -58,9 +58,12 @@ function Dashboard({ currentView }){
     const interval = setInterval(() => {
       loadReminders();
       loadEmiReminders();
-    }, 15000);
+    }, 300000); // Check every 5 minutes instead of 15 seconds
     return () => clearInterval(interval);
   }, []);
+
+  const [notifiedLoans, setNotifiedLoans] = useState(new Set());
+  const [notifiedEmis, setNotifiedEmis] = useState(new Set());
 
   useEffect(() => {
     if (reminders.length > 0 || emiReminders.length > 0) {
@@ -75,77 +78,63 @@ function Dashboard({ currentView }){
   };
 
   const checkForNewOverduePayments = () => {
-    if (reminders.length > 0) {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        reminders.forEach(async (loan, index) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      // Only show notifications for new overdue items
+      reminders.forEach(async (loan) => {
+        const loanKey = `loan-${loan.id}`;
+        if (!notifiedLoans.has(loanKey)) {
           try {
-            // Get actual payment data from backend
             const { data: payments } = await API.get(`/loans/${loan.id}/payments`);
             const trackingStart = new Date(loan.trackingStartDate || loan.issuedDate);
             const today = new Date();
             
-            // Count unpaid months by checking payment records
             let currentMonth = new Date(trackingStart);
             let unpaidMonths = 0;
+            let totalOverdue = 0;
             const monthlyInterest = loan.principal * loan.monthlyInterestRate / 100;
             
             while (currentMonth < today) {
-              const monthKey = currentMonth.toISOString().slice(0, 7); // YYYY-MM format
+              const monthKey = currentMonth.toISOString().slice(0, 7);
               const monthPayments = payments.filter(payment => {
                 const paymentMonth = payment.date.substring(0, 7);
                 return paymentMonth === monthKey;
               });
               const totalPaid = monthPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
               
-              if (totalPaid < (monthlyInterest - 0.01)) { // Small tolerance for rounding
+              if (totalPaid < (monthlyInterest - 0.01)) {
                 unpaidMonths++;
+                totalOverdue += Math.max(0, monthlyInterest - totalPaid);
               }
               
               currentMonth.setMonth(currentMonth.getMonth() + 1);
             }
             
             if (unpaidMonths > 0) {
-              // Calculate actual overdue amount considering partial payments
-              let totalOverdue = 0;
-              let currentMonth2 = new Date(trackingStart);
+              const notification = new Notification(`Lendex - Collect from ${loan.borrower?.name}`, {
+                body: `${unpaidMonths} month(s) overdue - Amount: ₹${totalOverdue.toFixed(0)}\nPhone: ${loan.borrower?.phone}`,
+                icon: '/favicon.ico',
+                tag: loanKey,
+                requireInteraction: true
+              });
               
-              while (currentMonth2 < today) {
-                const monthKey = currentMonth2.toISOString().slice(0, 7);
-                const monthPayments = payments.filter(payment => {
-                  const paymentMonth = payment.date.substring(0, 7);
-                  return paymentMonth === monthKey;
-                });
-                const totalPaid = monthPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-                
-                if (totalPaid < (monthlyInterest - 0.01)) { // Small tolerance
-                  totalOverdue += Math.max(0, monthlyInterest - totalPaid);
-                }
-                
-                currentMonth2.setMonth(currentMonth2.getMonth() + 1);
-              }
-            
-              setTimeout(() => {
-                const notification = new Notification(`Lendex - Collect from ${loan.borrower?.name}`, {
-                  body: `${unpaidMonths} month(s) overdue - Amount: ₹${totalOverdue.toFixed(0)}\nPhone: ${loan.borrower?.phone}`,
-                  icon: '/favicon.ico',
-                  tag: `overdue-loan-${loan.id}`,
-                  requireInteraction: true
-                });
-                
-                notification.onclick = () => {
-                  window.focus();
-                  setShowNotifications(true);
-                  notification.close();
-                };
-              }, index * 2000);
+              notification.onclick = () => {
+                window.focus();
+                setShowNotifications(true);
+                notification.close();
+              };
+              
+              setNotifiedLoans(prev => new Set([...prev, loanKey]));
             }
           } catch (err) {
             console.error('Failed to load payment data for notifications');
           }
-        });
-        
-        // EMI notifications
-        emiReminders.forEach(async (emi, index) => {
+        }
+      });
+      
+      // EMI notifications
+      emiReminders.forEach(async (emi) => {
+        const emiKey = `emi-${emi.id}`;
+        if (!notifiedEmis.has(emiKey)) {
           try {
             const { data: payments } = await API.get(`/emis/${emi.id}/payments`);
             const startDate = new Date(emi.startDate);
@@ -174,26 +163,26 @@ function Dashboard({ currentView }){
             }
             
             if (unpaidMonths > 0) {
-              setTimeout(() => {
-                const notification = new Notification(`Lendex - Collect EMI from ${emi.borrowerName}`, {
-                  body: `${unpaidMonths} month(s) overdue - Amount: ₹${totalOverdue.toFixed(0)}`,
-                  icon: '/favicon.ico',
-                  tag: `overdue-emi-${emi.id}`,
-                  requireInteraction: true
-                });
-                
-                notification.onclick = () => {
-                  window.focus();
-                  setShowNotifications(true);
-                  notification.close();
-                };
-              }, (reminders.length + index) * 2000);
+              const notification = new Notification(`Lendex - Collect EMI from ${emi.borrowerName}`, {
+                body: `${unpaidMonths} month(s) overdue - Amount: ₹${totalOverdue.toFixed(0)}`,
+                icon: '/favicon.ico',
+                tag: emiKey,
+                requireInteraction: true
+              });
+              
+              notification.onclick = () => {
+                window.focus();
+                setShowNotifications(true);
+                notification.close();
+              };
+              
+              setNotifiedEmis(prev => new Set([...prev, emiKey]));
             }
           } catch (err) {
             console.error('Failed to load EMI payment data for notifications');
           }
-        });
-      }
+        }
+      });
     }
   };
 
@@ -209,6 +198,9 @@ function Dashboard({ currentView }){
   const handlePaymentUpdate = () => {
     load();
     loadReminders();
+    // Clear notification state when payments are updated
+    setNotifiedLoans(new Set());
+    setNotifiedEmis(new Set());
   };
 
   if (selectedLoan) {

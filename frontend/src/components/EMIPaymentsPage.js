@@ -9,6 +9,7 @@ export default function EMIPaymentsPage({ emi, onBack }) {
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [partialAmount, setPartialAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
+  const [paymentRemarks, setPaymentRemarks] = useState('');
 
   useEffect(() => {
     loadPayments();
@@ -76,7 +77,8 @@ export default function EMIPaymentsPage({ emi, onBack }) {
       await API.post(`/emis/${emi.id}/payments`, {
         amount: monthData.amount.toString(),
         date: monthData.dueDate,
-        note: `Full EMI payment for ${monthData.month}`
+        note: `Full EMI payment for ${monthData.month}`,
+        remarks: paymentRemarks
       });
 
       const updatedSchedule = [...monthlySchedule];
@@ -100,6 +102,7 @@ export default function EMIPaymentsPage({ emi, onBack }) {
     setSelectedMonth({ ...monthData, index });
     setPartialAmount('');
     setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentRemarks('');
     setShowPartialModal(true);
   };
 
@@ -111,6 +114,17 @@ export default function EMIPaymentsPage({ emi, onBack }) {
 
     const amount = parseFloat(partialAmount);
     const fullAmount = selectedMonth.amount;
+    const remainingAmount = selectedMonth.remainingAmount || fullAmount;
+    
+    // Check if amount exceeds remaining EMI for this month
+    if (amount > remainingAmount) {
+      const proceed = window.confirm(
+        `Warning: You entered ₹${amount.toFixed(2)} but only ₹${remainingAmount.toFixed(2)} is remaining for ${selectedMonth.month}.\n\n` +
+        `This will result in an overpayment of ₹${(amount - remainingAmount).toFixed(2)}.\n\n` +
+        `Do you want to proceed?`
+      );
+      if (!proceed) return;
+    }
     
     if (amount >= fullAmount) {
       alert('Use "Mark as Paid" for full payments');
@@ -121,7 +135,8 @@ export default function EMIPaymentsPage({ emi, onBack }) {
       await API.post(`/emis/${emi.id}/payments`, {
         amount: amount.toString(),
         date: selectedMonth.dueDate,
-        note: `Partial EMI payment for ${selectedMonth.month} - ₹${amount} of ₹${fullAmount.toFixed(2)} (Recorded on ${paymentDate})`
+        note: `Partial EMI payment for ${selectedMonth.month} - ₹${amount} of ₹${fullAmount.toFixed(2)} (Recorded on ${paymentDate})`,
+        remarks: paymentRemarks
       });
 
       const updatedSchedule = [...monthlySchedule];
@@ -219,8 +234,12 @@ export default function EMIPaymentsPage({ emi, onBack }) {
                 className="form-input"
                 step="0.01"
                 min="0.01"
-                max={selectedMonth?.amount}
               />
+              {selectedMonth?.remainingAmount > 0 && (
+                <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
+                  Remaining for this month: ₹{selectedMonth.remainingAmount.toFixed(2)}
+                </small>
+              )}
             </div>
             <div className="form-group">
               <label>Payment Date:</label>
@@ -229,6 +248,16 @@ export default function EMIPaymentsPage({ emi, onBack }) {
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 className="form-input"
+              />
+            </div>
+            <div className="form-group">
+              <label>Remarks:</label>
+              <textarea
+                value={paymentRemarks}
+                onChange={(e) => setPaymentRemarks(e.target.value)}
+                placeholder="Optional notes about this EMI payment"
+                className="form-input"
+                rows="2"
               />
             </div>
             <div className="form-actions">

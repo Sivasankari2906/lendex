@@ -23,6 +23,9 @@ public class Payment {
     private LocalDate paymentDate; // Actual date when payment was recorded
     private String note;
     private String interestMonth; // Format: "2024-06" for June 2024
+    
+    // remarks or additional notes about the payment
+    private String remarks;
 
     @ManyToOne
     @JoinColumn(name = "loan_id")

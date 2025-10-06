@@ -24,6 +24,9 @@ public class EMI {
     private BigDecimal emiAmount; // Manual entry
     private LocalDate startDate; // e.g., Oct 1
     private boolean completed;
+    
+    // remarks or notes about the EMI
+    private String remarks;
 
     @ManyToOne
     @JoinColumn(name = "user_id")

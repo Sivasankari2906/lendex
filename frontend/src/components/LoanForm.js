@@ -8,7 +8,8 @@ export default function LoanForm({ onClose, onLoanAdded }) {
     principal: '',
     monthlyInterestRate: '',
     issuedDate: new Date().toISOString().split('T')[0],
-    trackingStartDate: new Date().toISOString().split('T')[0]
+    trackingStartDate: new Date().toISOString().split('T')[0],
+    remarks: ''
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,8 @@ export default function LoanForm({ onClose, onLoanAdded }) {
         principal: form.principal,
         monthlyInterestRate: form.monthlyInterestRate,
         issuedDate: form.issuedDate,
-        trackingStartDate: form.trackingStartDate
+        trackingStartDate: form.trackingStartDate,
+        remarks: form.remarks
       };
       await API.post(`/borrowers/${borrower.id}/loans`, loanData);
 
@@ -117,6 +119,16 @@ export default function LoanForm({ onClose, onLoanAdded }) {
                 required
               />
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Remarks</label>
+            <textarea
+              className="form-input"
+              value={form.remarks}
+              onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+              placeholder="Optional notes or remarks about this loan"
+              rows="3"
+            />
           </div>
           {error && <div className="error-message">{error}</div>}
           <div className="form-actions">

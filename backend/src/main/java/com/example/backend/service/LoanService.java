@@ -47,7 +47,7 @@ public class LoanService {
     }
 
     @Transactional
-    public Loan addLoan(Long borrowerId, BigDecimal principal, Double monthlyInterestRate, LocalDate issuedDate, LocalDate trackingStartDate, String username) {
+    public Loan addLoan(Long borrowerId, BigDecimal principal, Double monthlyInterestRate, LocalDate issuedDate, LocalDate trackingStartDate, String remarks, String username) {
         Borrower borrower = borrowerRepo.findById(borrowerId).orElseThrow();
         if (!borrower.getOwner().getUsername().equals(username)) throw new AccessDeniedException("not-owner");
         Loan loan = Loan.builder()
@@ -58,6 +58,7 @@ public class LoanService {
                 .trackingStartDate(trackingStartDate)
                 .nextDueDate(trackingStartDate.plusMonths(1))
                 .repaid(false)
+                .remarks(remarks)
                 .borrower(borrower)
                 .build();
         borrower.getLoans().add(loan);
@@ -111,11 +112,14 @@ public class LoanService {
 
 
     @Transactional
-    public Payment recordPayment(Long loanId, BigDecimal amount, LocalDate monthDate, String note, String username) {
+    public Payment recordPayment(Long loanId, BigDecimal amount, LocalDate monthDate, String note, String remarks, String username) {
         Loan loan = loanRepo.findById(loanId).orElseThrow();
         if (!loan.getBorrower().getOwner().getUsername().equals(username)) {
             throw new AccessDeniedException("not-owner");
         }
+        
+        // Validate payment amount against remaining interest for the month
+        validatePaymentAmount(loan, amount, monthDate);
         
         // Extract actual payment date from note if present, otherwise use today
         LocalDate actualPaymentDate = LocalDate.now();
@@ -137,6 +141,7 @@ public class LoanService {
             .paymentDate(actualPaymentDate) // Actual payment date (for display)
             .interestMonth(interestMonth)
             .note(note)
+            .remarks(remarks)
             .loan(loan)
             .build();
         paymentRepo.save(p);
@@ -145,6 +150,26 @@ public class LoanService {
         // Principal remains unchanged and can only be modified by user editing the loan
         
         return p;
+    }
+    
+    private void validatePaymentAmount(Loan loan, BigDecimal amount, LocalDate monthDate) {
+        double monthlyInterest = loan.getRemainingPrincipal().doubleValue() * loan.getMonthlyInterestRate() / 100;
+        
+        // Get existing payments for this month
+        double totalPaidThisMonth = paymentRepo.findByLoanOrderByDateDesc(loan).stream()
+            .filter(payment -> 
+                payment.getDate().getYear() == monthDate.getYear() &&
+                payment.getDate().getMonth() == monthDate.getMonth())
+            .mapToDouble(payment -> payment.getAmount().doubleValue())
+            .sum();
+        
+        double remainingForMonth = monthlyInterest - totalPaidThisMonth;
+        
+        // Allow overpayment but log a warning
+        if (amount.doubleValue() > remainingForMonth && remainingForMonth > 0) {
+            System.out.println(String.format("Warning: Payment of %.2f exceeds remaining interest of %.2f for month %s", 
+                amount.doubleValue(), remainingForMonth, monthDate.toString().substring(0, 7)));
+        }
     }
 
     public Loan getLoanForUser(Long loanId, String username) {

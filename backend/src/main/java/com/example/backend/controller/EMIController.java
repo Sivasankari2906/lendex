@@ -36,9 +36,10 @@ public class EMIController {
         Integer tenure = Integer.valueOf(body.get("tenure"));
         BigDecimal emiAmount = new BigDecimal(body.get("emiAmount"));
         LocalDate startDate = LocalDate.parse(body.get("startDate"));
+        String remarks = body.getOrDefault("remarks", "");
         
         return ResponseEntity.ok(emiService.createEmi(borrowerName, totalAmount, givenInCash, 
-                                                     givenDate, tenure, emiAmount, startDate, principal.getName()));
+                                                     givenDate, tenure, emiAmount, startDate, remarks, principal.getName()));
     }
 
     @DeleteMapping("/emis/{emiId}")
@@ -52,7 +53,8 @@ public class EMIController {
         BigDecimal amount = new BigDecimal(body.get("amount"));
         LocalDate monthDate = LocalDate.parse(body.get("date"));
         String note = body.getOrDefault("note", "");
-        return ResponseEntity.ok(emiService.recordEmiPayment(emiId, amount, monthDate, note, principal.getName()));
+        String remarks = body.getOrDefault("remarks", "");
+        return ResponseEntity.ok(emiService.recordEmiPayment(emiId, amount, monthDate, note, remarks, principal.getName()));
     }
 
     @GetMapping("/emis/{emiId}/payments")
@@ -74,8 +76,9 @@ public class EMIController {
         Integer tenure = Integer.valueOf(body.get("tenure"));
         BigDecimal emiAmount = new BigDecimal(body.get("emiAmount"));
         LocalDate startDate = LocalDate.parse(body.get("startDate"));
+        String remarks = body.getOrDefault("remarks", "");
         
         return ResponseEntity.ok(emiService.updateEmi(emiId, borrowerName, totalAmount, givenInCash,
-                                                      givenDate, tenure, emiAmount, startDate, principal.getName()));
+                                                      givenDate, tenure, emiAmount, startDate, remarks, principal.getName()));
     }
 }
