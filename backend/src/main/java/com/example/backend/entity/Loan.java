@@ -41,6 +41,9 @@ public class Loan {
     // if fully repaid, true
     private boolean repaid;
 
+    // remarks or notes about the loan
+    private String remarks;
+
     @ManyToOne
     @JoinColumn(name = "borrower_id")
     private Borrower borrower;

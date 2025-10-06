@@ -9,7 +9,8 @@ export default function EMIForm({ emi, onClose, onEmiAdded }) {
     givenDate: emi?.givenDate || '',
     tenure: emi?.tenure || '',
     emiAmount: emi?.emiAmount || '',
-    startDate: emi?.startDate || ''
+    startDate: emi?.startDate || '',
+    remarks: emi?.remarks || ''
   });
 
   const handleSave = async () => {
@@ -19,26 +20,21 @@ export default function EMIForm({ emi, onClose, onEmiAdded }) {
     }
 
     try {
+      const emiData = {
+        borrowerName: form.borrowerName,
+        totalAmount: form.totalAmount,
+        givenInCash: form.givenInCash,
+        givenDate: form.givenDate,
+        tenure: form.tenure,
+        emiAmount: form.emiAmount,
+        startDate: form.startDate,
+        remarks: form.remarks
+      };
+      
       if (emi) {
-        await API.put(`/emis/${emi.id}`, {
-          borrowerName: form.borrowerName,
-          totalAmount: form.totalAmount,
-          givenInCash: form.givenInCash,
-          givenDate: form.givenDate,
-          tenure: form.tenure,
-          emiAmount: form.emiAmount,
-          startDate: form.startDate
-        });
+        await API.put(`/emis/${emi.id}`, emiData);
       } else {
-        await API.post('/emis', {
-          borrowerName: form.borrowerName,
-          totalAmount: form.totalAmount,
-          givenInCash: form.givenInCash,
-          givenDate: form.givenDate,
-          tenure: form.tenure,
-          emiAmount: form.emiAmount,
-          startDate: form.startDate
-        });
+        await API.post('/emis', emiData);
       }
 
       onEmiAdded();
@@ -132,6 +128,17 @@ export default function EMIForm({ emi, onClose, onEmiAdded }) {
             onChange={(e) => setForm({ ...form, startDate: e.target.value })}
             className="form-input"
             required
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Remarks</label>
+          <textarea
+            value={form.remarks}
+            onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+            placeholder="Optional notes or remarks about this EMI"
+            className="form-input"
+            rows="3"
           />
         </div>
 

@@ -29,18 +29,24 @@ export default function NotificationPanel({ show, onClose, reminders, emiReminde
         <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
           {notifications.length > 0 && (
             <div>
-              <h4>System Notifications</h4>
+              <h4>Recent Notifications ({notifications.length})</h4>
               {notifications.map(notification => (
                 <div key={notification.id} style={{
-                  padding: '10px',
+                  padding: '12px',
                   border: '1px solid #007bff',
-                  borderRadius: '4px',
-                  marginBottom: '8px',
-                  backgroundColor: '#e7f3ff'
+                  borderRadius: '6px',
+                  marginBottom: '10px',
+                  backgroundColor: '#f8f9ff'
                 }}>
-                  <div style={{ fontWeight: 'bold' }}>{notification.title}</div>
-                  <div>{notification.message}</div>
-                  <small>{new Date(notification.createdAt).toLocaleString()}</small>
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                    {notification.loan ? `Loan: ${notification.loan.borrower?.name}` : 
+                     notification.emi ? `EMI: ${notification.emi.borrowerName}` : 'System'}
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>{notification.message}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    Sent: {new Date(notification.sentDate).toLocaleDateString()}
+                    {notification.daysPastDue > 0 && ` • ${notification.daysPastDue} days overdue`}
+                  </div>
                 </div>
               ))}
             </div>

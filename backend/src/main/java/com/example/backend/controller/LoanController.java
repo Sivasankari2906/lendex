@@ -47,7 +47,8 @@ public class LoanController {
         Double rate = Double.valueOf(body.get("monthlyInterestRate"));
         LocalDate issued = LocalDate.parse(body.getOrDefault("issuedDate", LocalDate.now().toString()));
         LocalDate trackingStart = LocalDate.parse(body.getOrDefault("trackingStartDate", issued.toString()));
-        return ResponseEntity.ok(loanService.addLoan(id, principal_amount, rate, issued, trackingStart, principal.getName()));
+        String remarks = body.getOrDefault("remarks", "");
+        return ResponseEntity.ok(loanService.addLoan(id, principal_amount, rate, issued, trackingStart, remarks, principal.getName()));
     }
 
     @GetMapping("/loans")
@@ -73,7 +74,8 @@ public class LoanController {
         BigDecimal amount = new BigDecimal(body.get("amount"));
         LocalDate userDate = LocalDate.parse(body.getOrDefault("date", LocalDate.now().toString()));
         String note = body.getOrDefault("note", "");
-        return ResponseEntity.ok(loanService.recordPayment(loanId, amount, userDate, note, principal.getName()));
+        String remarks = body.getOrDefault("remarks", "");
+        return ResponseEntity.ok(loanService.recordPayment(loanId, amount, userDate, note, remarks, principal.getName()));
     }
 
     @GetMapping("/loans/{loanId}")

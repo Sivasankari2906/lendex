@@ -9,6 +9,7 @@ export default function PaymentsPage({ loan, onBack }) {
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [partialAmount, setPartialAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
+  const [paymentRemarks, setPaymentRemarks] = useState('');
 
   useEffect(() => {
     loadPayments();
@@ -85,7 +86,8 @@ export default function PaymentsPage({ loan, onBack }) {
       const response = await API.post(`/loans/${loan.id}/payments`, {
         amount: monthData.amount.toString(),
         date: monthData.dueDate,
-        note: `Full interest payment for ${monthData.month}`
+        note: `Full interest payment for ${monthData.month}`,
+        remarks: paymentRemarks
       });
 
       if (response.status === 200) {
@@ -114,6 +116,7 @@ export default function PaymentsPage({ loan, onBack }) {
     setSelectedMonth({ ...monthData, index });
     setPartialAmount('');
     setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
+    setPaymentRemarks('');
     setShowPartialModal(true);
   };
 
@@ -125,6 +128,17 @@ export default function PaymentsPage({ loan, onBack }) {
 
     const amount = parseFloat(partialAmount);
     const fullAmount = selectedMonth.amount;
+    const remainingAmount = selectedMonth.remainingAmount || fullAmount;
+    
+    // Check if amount exceeds remaining interest for this month
+    if (amount > remainingAmount) {
+      const proceed = window.confirm(
+        `Warning: You entered ₹${amount.toFixed(2)} but only ₹${remainingAmount.toFixed(2)} is remaining for ${selectedMonth.month}.\n\n` +
+        `This will result in an overpayment of ₹${(amount - remainingAmount).toFixed(2)}.\n\n` +
+        `Do you want to proceed?`
+      );
+      if (!proceed) return;
+    }
     
     if (amount >= fullAmount) {
       alert('Use "Mark as Paid" for full payments');
@@ -136,7 +150,8 @@ export default function PaymentsPage({ loan, onBack }) {
       await API.post(`/loans/${loan.id}/payments`, {
         amount: amount.toString(),
         date: selectedMonth.dueDate,
-        note: `Partial payment for ${selectedMonth.month} - ₹${amount} of ₹${fullAmount.toFixed(2)} (Recorded on ${paymentDate})`
+        note: `Partial payment for ${selectedMonth.month} - ₹${amount} of ₹${fullAmount.toFixed(2)} (Recorded on ${paymentDate})`,
+        remarks: paymentRemarks
       });
 
       // Immediately update UI
@@ -237,8 +252,12 @@ export default function PaymentsPage({ loan, onBack }) {
                 className="form-input"
                 step="0.01"
                 min="0.01"
-                max={selectedMonth?.amount}
               />
+              {selectedMonth?.remainingAmount > 0 && (
+                <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
+                  Remaining for this month: ₹{selectedMonth.remainingAmount.toFixed(2)}
+                </small>
+              )}
             </div>
             <div className="form-group">
               <label>Payment Date:</label>
@@ -247,6 +266,16 @@ export default function PaymentsPage({ loan, onBack }) {
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 className="form-input"
+              />
+            </div>
+            <div className="form-group">
+              <label>Remarks:</label>
+              <textarea
+                value={paymentRemarks}
+                onChange={(e) => setPaymentRemarks(e.target.value)}
+                placeholder="Optional notes about this payment"
+                className="form-input"
+                rows="2"
               />
             </div>
             <div className="form-actions">
