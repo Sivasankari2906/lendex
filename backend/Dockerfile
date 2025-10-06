@@ -2,10 +2,10 @@
 FROM eclipse-temurin:17-jdk-jammy AS build
 WORKDIR /app
 
-COPY pom.xml ./           # correct if Dockerfile is in backend/
-COPY src ./src
-COPY mvnw ./
-COPY .mvn ./.mvn
+COPY backend/pom.xml ./
+COPY backend/src ./src
+COPY backend/mvnw ./
+COPY backend/.mvn ./.mvn
 
 RUN ./mvnw -B -DskipTests clean package
 
