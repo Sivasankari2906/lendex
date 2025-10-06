@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: lendex-frontend
+    env: docker
+    dockerfilePath: ./frontend/Dockerfile
+    plan: free
+    
+  - type: web
+    name: lendex-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    
+  - type: pserv
+    name: lendex-postgres
+    env: docker
+    dockerCommand: postgres:15
+    plan: free
