@@ -15,9 +15,9 @@ services:
     build: ./backend
     restart: always
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lendex
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: Shiv@29
+      SPRING_DATASOURCE_URL: jdbc:postgresql://dpg-d3hpao33fgac73a05d80-a:5432/lendex
+      SPRING_DATASOURCE_USERNAME: lendex_user
+      SPRING_DATASOURCE_PASSWORD: 3AJ4LF1ElDELTmORPuKzM8ubVI5WR00V
       Lendex_JWT_SECRET: "wt34456ryjtugykhui@%uy58809ltfvbnm50l98r68d5touhjk0op946rty"
 
     depends_on:
