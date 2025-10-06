@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:15
-    # restart: always
+    restart: always
     environment:
       POSTGRES_DB: lendex
       POSTGRES_USER: postgres
@@ -13,7 +13,7 @@ services:
 
   backend:
     build: ./backend
-    restart: on-failure
+    restart: always
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lendex
       SPRING_DATASOURCE_USERNAME: postgres
@@ -27,7 +27,7 @@ services:
 
   frontend:
     build: ./frontend
-    restart: on-failure
+    restart: always
     environment:
       REACT_APP_API_URL: http://192.168.235.201:8080/api
     ports:
