@@ -7,7 +7,7 @@ COPY backend/src ./src
 COPY backend/mvnw ./
 COPY backend/.mvn ./.mvn
 
-RUN ./mvnw -B -DskipTests clean package
+RUN chmod +x ./mvnw && ./mvnw -B -DskipTests clean package
 
 # Stage 2: Runtime image
 FROM eclipse-temurin:17-jdk-jammy
