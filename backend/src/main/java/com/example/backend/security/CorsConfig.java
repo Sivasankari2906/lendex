@@ -1,5 +1,6 @@
 package com.example.backend.security;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,7 +28,7 @@ public class CorsConfig {
 
     // ✅ Register global CorsFilter so both preflight and actual requests include proper headers
     @Bean
-    public FilterRegistrationBean<CorsFilter> corsFilterRegistration(CorsConfigurationSource source) {
+    public FilterRegistrationBean<CorsFilter> corsFilterRegistration(@Qualifier("corsConfigurationSource") CorsConfigurationSource source) {
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
         bean.setOrder(0); // highest priority
         return bean;
