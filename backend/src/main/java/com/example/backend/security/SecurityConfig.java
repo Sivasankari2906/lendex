@@ -2,8 +2,8 @@ package com.example.backend.security;
 
 import org.springframework.context.annotation.*;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.*;
-import org.springframework.security.web.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
@@ -19,34 +19,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Disable CSRF because we’re using JWTs
+            // ✅ Disable CSRF for APIs
             .csrf(csrf -> csrf.disable())
 
-            // Enable CORS using the bean defined above
-            .cors(cors -> {})
+            // ✅ Enable CORS using our custom configuration
+            .cors(cors -> cors.configurationSource(new CorsConfig().corsConfigurationSource()))
 
-            // Stateless session
+            // ✅ Stateless session for JWT
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // Authorization rules
+            // ✅ Permit certain endpoints
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/",
-                    "/index.html", 
+                    "/", "/index.html",
                     "/api/auth/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
-                    "/static/**",
-                    "/css/**",
-                    "/js/**",
-                    "/images/**",
-                    "/actuator/**" 
+                    "/actuator/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
 
-            // Add JWT filter before username/password authentication
+            // ✅ Add JWT filter before the authentication chain
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
