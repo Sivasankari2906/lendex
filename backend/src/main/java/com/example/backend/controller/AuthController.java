@@ -29,9 +29,10 @@ public class AuthController {
 
     @PostMapping("/send-otp")
     public ResponseEntity<?> sendOtp(@RequestBody Map<String,String> body) {
-        String email = body.get("email");
-        auth.sendOtp(email);
-        return ResponseEntity.ok(Map.of("message", "OTP sent to your email"));
+        String channel = auth.sendOtp(body.get("email"), body.get("phone"));
+        return ResponseEntity.ok(Map.of(
+                "channel", channel,
+                "message", "sms".equals(channel) ? "OTP sent to your phone" : "OTP sent to your email"));
     }
 
     @PostMapping("/verify-otp")

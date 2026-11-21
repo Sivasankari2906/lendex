@@ -28,12 +28,13 @@ public class AuthService {
     @org.springframework.beans.factory.annotation.Value("${lendex.frontend-url:http://localhost:3000}")
     private String frontendUrl;
 
-    public AuthService(UserRepository userRepo, BCryptPasswordEncoder passwordEncoder, JwtUtil jwtUtil, EmailService emailService) {
+    public AuthService(UserRepository userRepo, BCryptPasswordEncoder passwordEncoder, JwtUtil jwtUtil, EmailService emailService,
+                       SmsService smsService) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.emailService = emailService;
-        this.smsService = new SmsService();
+        this.smsService = smsService;
     }
 
     public String register(String username, String password, String fullName, String email, String phone) {
@@ -51,16 +52,37 @@ public class AuthService {
         return jwtUtil.generateToken(username);
     }
     
-    public void sendOtp(String email) {
-        String otp = String.format("%06d", new Random().nextInt(999999));
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+    private static final int OTP_RESEND_SECONDS = 30;
+    private final Map<String, LocalDateTime> otpLastSent = new ConcurrentHashMap<>();
+
+    /**
+     * Sends a 6-digit OTP. If SMS is configured and a phone number is given, it goes to the phone;
+     * otherwise it goes to the email address. Returns "sms" or "email".
+     */
+    public String sendOtp(String email, String phone) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+        LocalDateTime last = otpLastSent.get(email);
+        if (last != null && last.plusSeconds(OTP_RESEND_SECONDS).isAfter(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Please wait " + OTP_RESEND_SECONDS + " seconds before requesting another code.");
+        }
+        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
         otpStorage.put(email, otp);
         otpExpiry.put(email, LocalDateTime.now().plusMinutes(5));
-        
+        otpLastSent.put(email, LocalDateTime.now());
+
+        if (phone != null && !phone.isBlank() && smsService.isEnabled()
+                && smsService.sendSms(phone, "Your Lendex verification code is " + otp + ". It expires in 5 minutes.")) {
+            return "sms";
+        }
         String subject = "Phone Verification - Lendex";
         String body = "Hello,\n\nYour phone verification OTP is: " + otp + "\n\nThis OTP will expire in 5 minutes.\n\nBest regards,\nLendex Team";
         emailService.sendEmailFromLendex(email, subject, body);
+        return "email";
     }
-    
+
     public boolean verifyOtp(String email, String otp) {
         String storedOtp = otpStorage.get(email);
         LocalDateTime expiry = otpExpiry.get(email);

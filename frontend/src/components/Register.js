@@ -7,6 +7,7 @@ export default function Register({ onRegister }) {
   const [error, setError] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [otpChannel, setOtpChannel] = useState('email');
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -23,11 +24,12 @@ export default function Register({ onRegister }) {
     
     setLoading(true);
     try {
-      await API.post('/auth/send-otp', { email: form.email });
+      const { data } = await API.post('/auth/send-otp', { email: form.email, phone: form.phone });
+      setOtpChannel(data.channel === 'sms' ? 'sms' : 'email');
       setOtpSent(true);
       setError('');
     } catch (err) {
-      setError('Failed to send OTP');
+      setError(err.response?.data?.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -160,7 +162,7 @@ export default function Register({ onRegister }) {
                   {loading ? 'Verifying...' : 'Verify'}
                 </button>
               </div>
-              <small className="help-text">Check your email for the verification code</small>
+              <small className="help-text">{otpChannel === 'sms' ? 'Check your phone for the verification code' : 'Check your email for the verification code'}</small>
             </div>
           )}
           {error && <div className="register-error">{error}</div>}
