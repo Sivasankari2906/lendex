@@ -18,4 +18,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByEmiAndSentDate(EMI emi, LocalDate sentDate);
     List<Notification> findByEmiUserUsername(String username);
     List<Notification> findBySentDateBefore(LocalDate cutoffDate);
+    void deleteByLoan(Loan loan);
+    void deleteByEmi(EMI emi);
 }

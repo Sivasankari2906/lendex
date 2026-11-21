@@ -25,6 +25,9 @@ public class AuthService {
     private final Map<String, String> resetTokens = new ConcurrentHashMap<>();
     private final Map<String, LocalDateTime> resetTokenExpiry = new ConcurrentHashMap<>();
 
+    @org.springframework.beans.factory.annotation.Value("${lendex.frontend-url:http://localhost:3000}")
+    private String frontendUrl;
+
     public AuthService(UserRepository userRepo, BCryptPasswordEncoder passwordEncoder, JwtUtil jwtUtil, EmailService emailService) {
         this.userRepo = userRepo;
         this.passwordEncoder = passwordEncoder;
@@ -75,12 +78,16 @@ public class AuthService {
     }
     
     public void sendPasswordResetEmail(String email) {
-        User user = userRepo.findByEmail(email).orElseThrow(() -> new RuntimeException("email-not-found"));
+        // Do nothing for unknown emails, so the endpoint does not reveal which emails have accounts.
+        User user = userRepo.findByEmail(email).orElse(null);
+        if (user == null) {
+            return;
+        }
         String token = UUID.randomUUID().toString();
         resetTokens.put(token, user.getUsername());
         resetTokenExpiry.put(token, LocalDateTime.now().plusHours(1));
         
-        String resetLink = "http://localhost:3000/reset-password?token=" + token;
+        String resetLink = frontendUrl + "/reset-password?token=" + token;
         String subject = "Password Reset - Lendex";
         String body = "Hello,\n\nClick the link below to reset your password:\n\n" + resetLink + "\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nLendex Team";
         emailService.sendEmailFromLendex(email, subject, body);

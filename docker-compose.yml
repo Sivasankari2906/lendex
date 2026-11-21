@@ -1,37 +1,39 @@
+# Local stack. Put the values in a .env file next to this one (see .env.example).
 services:
   postgres:
     image: postgres:15
     restart: always
     environment:
       POSTGRES_DB: lendex
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Shiv@29
+      POSTGRES_USER: ${DB_USERNAME:?set DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # No published port: only the backend container talks to the database.
 
   backend:
     build: ./backend
     restart: always
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://dpg-d3hpao33fgac73a05d80-a:5432/lendex
-      SPRING_DATASOURCE_USERNAME: lendex_user
-      SPRING_DATASOURCE_PASSWORD: 3AJ4LF1ElDELTmORPuKzM8ubVI5WR00V
-      Lendex_JWT_SECRET: "wt34456ryjtugykhui@%uy58809ltfvbnm50l98r68d5touhjk0op946rty"
-
+      DB_URL: jdbc:postgresql://postgres:5432/lendex
+      DB_USERNAME: ${DB_USERNAME:?set DB_USERNAME in .env}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      LENDEX_JWT_SECRET: ${LENDEX_JWT_SECRET:?set LENDEX_JWT_SECRET in .env}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
       - postgres
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   frontend:
     build: ./frontend
     restart: always
     environment:
-      REACT_APP_API_URL: http://192.168.235.201:8080/api
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8080/api}
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     depends_on:
       - backend
 

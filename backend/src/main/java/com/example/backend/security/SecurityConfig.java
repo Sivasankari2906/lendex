@@ -34,18 +34,18 @@ public class SecurityConfig {
             // ✅ Permit certain endpoints
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/", "/index.html",
+                    "/", "/index.html", "/error",
                     "/api/auth/**",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/actuator/**",
-                    "/**/*.js",
-                    "/**/*.css",
-                    "/**/*.ico",
-                    "/**/*.json",
-                    "/**/*.png",
-                    "/**/*.woff2",
+                    "/*.js",
+                    "/*.css",
+                    "/*.ico",
+                    "/*.json",
+                    "/*.png",
+                    "/*.woff2",
                     "/static/**"
                 ).permitAll()
                 .anyRequest().authenticated()

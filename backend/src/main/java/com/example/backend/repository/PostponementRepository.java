@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface PostponementRepository extends JpaRepository<Postponement, Long> {
     Optional<Postponement> findByLoanAndOriginalDueDate(Loan loan, LocalDate originalDueDate);
     List<Postponement> findByPostponedUntilGreaterThanEqual(LocalDate date);
+    void deleteByLoan(Loan loan);
 }

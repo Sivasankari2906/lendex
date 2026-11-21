@@ -8,4 +8,5 @@ import java.util.List;
 
 public interface EMIPaymentRepository extends JpaRepository<EMIPayment, Long> {
     List<EMIPayment> findByEmiOrderByDateDesc(EMI emi);
+    void deleteByEmi(EMI emi);
 }

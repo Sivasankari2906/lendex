@@ -11,6 +11,8 @@ import com.example.backend.repository.EMIRepository;
 import com.example.backend.repository.EMIPaymentRepository;
 import com.example.backend.repository.LoanRepository;
 import com.example.backend.repository.PaymentRepository;
+import com.example.backend.repository.NotificationRepository;
+import com.example.backend.repository.PostponementRepository;
 import com.example.backend.repository.UserRepository;
 
 import org.springframework.security.access.AccessDeniedException;
@@ -31,8 +33,12 @@ public class LoanService {
     private final PaymentRepository paymentRepo;
     private final EMIRepository emiRepo;
     private final EMIPaymentRepository emiPaymentRepo;
+    private final PostponementRepository postponementRepo;
+    private final NotificationRepository notificationRepo;
 
-    public LoanService(LoanRepository loanRepo, UserRepository userRepo, BorrowerRepository borrowerRepo, PaymentRepository paymentRepo, EMIRepository emiRepo, EMIPaymentRepository emiPaymentRepo) {
+    public LoanService(LoanRepository loanRepo, UserRepository userRepo, BorrowerRepository borrowerRepo, PaymentRepository paymentRepo, EMIRepository emiRepo, EMIPaymentRepository emiPaymentRepo, PostponementRepository postponementRepo, NotificationRepository notificationRepo) {
+        this.postponementRepo = postponementRepo;
+        this.notificationRepo = notificationRepo;
         this.loanRepo = loanRepo;
         this.userRepo = userRepo;
         this.borrowerRepo = borrowerRepo;
@@ -61,9 +67,9 @@ public class LoanService {
                 .remarks(remarks)
                 .borrower(borrower)
                 .build();
-        borrower.getLoans().add(loan);
-        borrowerRepo.save(borrower);
-        return loan;
+        Loan saved = loanRepo.save(loan);
+        borrower.getLoans().add(saved);
+        return saved;
     }
 
     public List<Loan> getAllLoans() {
@@ -119,6 +125,9 @@ public class LoanService {
         }
         
         // Validate payment amount against remaining interest for the month
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("Payment amount must be greater than zero.");
+        }
         validatePaymentAmount(loan, amount, monthDate);
         
         // Extract actual payment date from note if present, otherwise use today
@@ -266,6 +275,12 @@ public class LoanService {
         Borrower borrower = borrowerRepo.findById(borrowerId).orElseThrow();
         if (!borrower.getOwner().getUsername().equals(username)) {
             throw new AccessDeniedException("not-owner");
+        }
+        // Remove rows that point at this borrower's loans first, otherwise the delete fails.
+        for (Loan loan : borrower.getLoans()) {
+            paymentRepo.deleteByLoan(loan);
+            postponementRepo.deleteByLoan(loan);
+            notificationRepo.deleteByLoan(loan);
         }
         borrowerRepo.delete(borrower);
     }

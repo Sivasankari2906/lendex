@@ -5,6 +5,7 @@ import com.example.backend.entity.EMIPayment;
 import com.example.backend.entity.User;
 import com.example.backend.repository.EMIRepository;
 import com.example.backend.repository.EMIPaymentRepository;
+import com.example.backend.repository.NotificationRepository;
 import com.example.backend.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,11 @@ public class EMIService {
     private final EMIRepository emiRepo;
     private final UserRepository userRepo;
     private final EMIPaymentRepository emiPaymentRepo;
+    private final NotificationRepository notificationRepo;
 
-    public EMIService(EMIRepository emiRepo, UserRepository userRepo, EMIPaymentRepository emiPaymentRepo) {
+    public EMIService(EMIRepository emiRepo, UserRepository userRepo, EMIPaymentRepository emiPaymentRepo,
+                      NotificationRepository notificationRepo) {
+        this.notificationRepo = notificationRepo;
         this.emiRepo = emiRepo;
         this.userRepo = userRepo;
         this.emiPaymentRepo = emiPaymentRepo;
@@ -59,11 +63,17 @@ public class EMIService {
         if (!emi.getUser().getUsername().equals(username)) {
             throw new AccessDeniedException("not-owner");
         }
+        // Remove payments and notifications for this EMI first, otherwise the delete fails.
+        emiPaymentRepo.deleteByEmi(emi);
+        notificationRepo.deleteByEmi(emi);
         emiRepo.delete(emi);
     }
 
     @Transactional
     public EMIPayment recordEmiPayment(Long emiId, BigDecimal amount, LocalDate monthDate, String note, String remarks, String username) {
+        if (amount == null || amount.signum() <= 0) {
+            throw new IllegalArgumentException("Payment amount must be greater than zero.");
+        }
         EMI emi = emiRepo.findById(emiId).orElseThrow();
         if (!emi.getUser().getUsername().equals(username)) {
             throw new AccessDeniedException("not-owner");
