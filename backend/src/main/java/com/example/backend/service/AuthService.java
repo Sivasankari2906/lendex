@@ -20,8 +20,6 @@ public class AuthService {
     private final EmailService emailService;
     private final SmsService smsService;
     
-    private final Map<String, String> otpStorage = new ConcurrentHashMap<>();
-    private final Map<String, LocalDateTime> otpExpiry = new ConcurrentHashMap<>();
     private final Map<String, String> resetTokens = new ConcurrentHashMap<>();
     private final Map<String, LocalDateTime> resetTokenExpiry = new ConcurrentHashMap<>();
 
@@ -40,6 +38,14 @@ public class AuthService {
     public String register(String username, String password, String fullName, String email, String phone) {
         if (userRepo.existsByUsername(username)) throw new RuntimeException("username-exists");
         if (!email.isEmpty() && userRepo.existsByEmail(email)) throw new RuntimeException("email-exists");
+        if (phone != null && !phone.isBlank()) {
+            String normalized = smsService.normalize(phone);
+            String verifiedKey = (email == null ? "" : email.trim().toLowerCase()) + "|" + normalized;
+            java.time.Instant until = normalized == null ? null : verifiedPhones.remove(verifiedKey);
+            if (until == null || java.time.Instant.now().isAfter(until)) {
+                throw new RuntimeException("phone-not-verified");
+            }
+        }
         
         User u = User.builder()
                 .username(username)
@@ -53,52 +59,122 @@ public class AuthService {
     }
     
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
-    private static final int OTP_RESEND_SECONDS = 30;
-    private final Map<String, LocalDateTime> otpLastSent = new ConcurrentHashMap<>();
+    private static final java.time.Duration OTP_TTL = java.time.Duration.ofMinutes(5);
+    private static final java.time.Duration RESEND = java.time.Duration.ofSeconds(30);
+    private static final java.time.Duration VERIFIED_TTL = java.time.Duration.ofMinutes(30);
+    private static final int MAX_ATTEMPTS = 5;
+    private static final int MAX_SENDS_PER_KEY_PER_HOUR = 5;
+
+    @org.springframework.beans.factory.annotation.Value("${lendex.otp.max-per-hour:60}")
+    private int maxOtpsPerHour = 60;
+
+    private record OtpEntry(String hash, String phone, java.time.Instant expiresAt, int attempts) { }
+
+    private final Map<String, OtpEntry> otps = new ConcurrentHashMap<>();
+    private final Map<String, java.util.Deque<java.time.Instant>> sends = new ConcurrentHashMap<>();
+    private final java.util.Deque<java.time.Instant> allSends = new java.util.concurrent.ConcurrentLinkedDeque<>();
+    private final Map<String, java.time.Instant> verifiedPhones = new ConcurrentHashMap<>();
 
     /**
-     * Sends a 6-digit OTP. If SMS is configured and a phone number is given, it goes to the phone;
-     * otherwise it goes to the email address. Returns "sms" or "email".
+     * Sends a 6-digit OTP to the phone by SMS if SMS is configured, otherwise to the email address.
+     * Limits: one code per email or phone every 30 seconds, 5 per hour each, and a global hourly cap.
+     * Returns "sms" or "email".
      */
-    public String sendOtp(String email, String phone) {
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Email is required.");
+    public synchronized String sendOtp(String email, String phone) {
+        if (email == null || !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            throw new IllegalArgumentException("Enter a valid email address.");
         }
-        LocalDateTime last = otpLastSent.get(email);
-        if (last != null && last.plusSeconds(OTP_RESEND_SECONDS).isAfter(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Please wait " + OTP_RESEND_SECONDS + " seconds before requesting another code.");
+        String key = email.trim().toLowerCase();
+        String normalizedPhone = phone == null || phone.isBlank() ? null : smsService.normalize(phone);
+        if (phone != null && !phone.isBlank() && normalizedPhone == null) {
+            throw new IllegalArgumentException("Enter a valid mobile number.");
         }
-        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
-        otpStorage.put(email, otp);
-        otpExpiry.put(email, LocalDateTime.now().plusMinutes(5));
-        otpLastSent.put(email, LocalDateTime.now());
+        java.time.Instant now = java.time.Instant.now();
+        pruneOld(now);
+        if (!allowed("email:" + key, now) || (normalizedPhone != null && !allowed("phone:" + normalizedPhone, now))
+                || allSends.size() >= maxOtpsPerHour) {
+            throw new RuntimeException("otp-rate-limited");
+        }
 
-        if (phone != null && !phone.isBlank() && smsService.isEnabled()
-                && smsService.sendSms(phone, "Your Lendex verification code is " + otp + ". It expires in 5 minutes.")) {
+        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
+        otps.put(key, new OtpEntry(hashOtp(key, normalizedPhone, otp), normalizedPhone, now.plus(OTP_TTL), 0));
+        record(key, normalizedPhone, now);
+
+        if (normalizedPhone != null && smsService.isEnabled()
+                && smsService.sendSms(normalizedPhone, "Your Lendex verification code is " + otp + ". It expires in 5 minutes.")) {
             return "sms";
         }
-        String subject = "Phone Verification - Lendex";
-        String body = "Hello,\n\nYour phone verification OTP is: " + otp + "\n\nThis OTP will expire in 5 minutes.\n\nBest regards,\nLendex Team";
-        emailService.sendEmailFromLendex(email, subject, body);
-        return "email";
+        String body = "Hello,\n\nYour Lendex verification code is: " + otp + "\n\nIt expires in 5 minutes.\n\nBest regards,\nLendex Team";
+        if (emailService.sendEmailFromLendex(email, "Your Lendex verification code", body)) {
+            return "email";
+        }
+        otps.remove(key);
+        throw new RuntimeException("otp-delivery-failed");
     }
 
-    public boolean verifyOtp(String email, String otp) {
-        String storedOtp = otpStorage.get(email);
-        LocalDateTime expiry = otpExpiry.get(email);
-        
-        if (storedOtp == null || expiry == null || LocalDateTime.now().isAfter(expiry)) {
+    /** True once for the right code. A code allows 5 attempts and expires after 5 minutes. */
+    public synchronized boolean verifyOtp(String email, String otp) {
+        if (email == null || otp == null) {
             return false;
         }
-        
-        boolean isValid = storedOtp.equals(otp);
-        if (isValid) {
-            otpStorage.remove(email);
-            otpExpiry.remove(email);
+        String key = email.trim().toLowerCase();
+        OtpEntry entry = otps.get(key);
+        java.time.Instant now = java.time.Instant.now();
+        if (entry == null || now.isAfter(entry.expiresAt()) || entry.attempts() >= MAX_ATTEMPTS) {
+            otps.remove(key);
+            return false;
         }
-        return isValid;
+        boolean ok = java.security.MessageDigest.isEqual(
+                entry.hash().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                hashOtp(key, entry.phone(), otp.trim()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        if (!ok) {
+            otps.put(key, new OtpEntry(entry.hash(), entry.phone(), entry.expiresAt(), entry.attempts() + 1));
+            return false;
+        }
+        otps.remove(key);
+        if (entry.phone() != null) {
+            verifiedPhones.put(key + "|" + entry.phone(), now.plus(VERIFIED_TTL));
+        }
+        return true;
     }
-    
+
+    private boolean allowed(String bucket, java.time.Instant now) {
+        java.util.Deque<java.time.Instant> list = sends.get(bucket);
+        if (list == null || list.isEmpty()) {
+            return true;
+        }
+        return list.peekLast().plus(RESEND).isBefore(now) && list.size() < MAX_SENDS_PER_KEY_PER_HOUR;
+    }
+
+    private void record(String key, String phone, java.time.Instant now) {
+        sends.computeIfAbsent("email:" + key, k -> new java.util.ArrayDeque<>()).addLast(now);
+        if (phone != null) {
+            sends.computeIfAbsent("phone:" + phone, k -> new java.util.ArrayDeque<>()).addLast(now);
+        }
+        allSends.addLast(now);
+    }
+
+    /** Drops expired codes, old send records and old verifications so memory does not grow. */
+    private void pruneOld(java.time.Instant now) {
+        java.time.Instant hourAgo = now.minus(java.time.Duration.ofHours(1));
+        while (!allSends.isEmpty() && allSends.peekFirst().isBefore(hourAgo)) {
+            allSends.pollFirst();
+        }
+        sends.values().forEach(d -> { while (!d.isEmpty() && d.peekFirst().isBefore(hourAgo)) d.pollFirst(); });
+        sends.values().removeIf(java.util.Deque::isEmpty);
+        otps.values().removeIf(e -> now.isAfter(e.expiresAt()));
+        verifiedPhones.values().removeIf(now::isAfter);
+    }
+
+    private static String hashOtp(String email, String phone, String otp) {
+        try {
+            java.security.MessageDigest d = java.security.MessageDigest.getInstance("SHA-256");
+            return java.util.HexFormat.of().formatHex(d.digest((email + "|" + phone + "|" + otp).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     public void sendPasswordResetEmail(String email) {
         // Do nothing for unknown emails, so the endpoint does not reveal which emails have accounts.
         User user = userRepo.findByEmail(email).orElse(null);

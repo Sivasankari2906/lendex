@@ -24,7 +24,8 @@ public class EmailService {
         }
     }
     
-    public void sendEmailFromLendex(String toEmail, String subject, String message) {
+    /** @return false if the message could not be handed to the mail server. */
+    public boolean sendEmailFromLendex(String toEmail, String subject, String message) {
         try {
             SimpleMailMessage email = new SimpleMailMessage();
             email.setFrom("lendex.team@gmail.com");
@@ -32,8 +33,10 @@ public class EmailService {
             email.setSubject(subject);
             email.setText(message);
             mailSender.send(email);
+            return true;
         } catch (Exception e) {
             System.err.println("Failed to send email from Lendex: " + e.getMessage());
+            return false;
         }
     }
 }

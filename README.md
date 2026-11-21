@@ -23,7 +23,7 @@ Copy `.env.example` to `.env` and fill it in. On a hosting platform (Render, Rai
 
 1. Install the textbee Android app on a phone with a SIM (from textbee.dev/download), or self-host the server from the textbee repo.
 2. Create an account, add the phone as a device and copy the API key.
-3. Set `TEXTBEE_API_KEY` (and `TEXTBEE_DEVICE_ID` to choose a phone). OTPs and reminders then go out by SMS from that phone.
+3. Set `TEXTBEE_API_KEY` (and `TEXTBEE_DEVICE_ID` to choose a phone). Verification codes then go out by SMS from that phone (reminders still use email).
 
 ## Run locally
 

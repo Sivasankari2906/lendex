@@ -33,7 +33,11 @@ public class SmsService {
         this.apiKey = apiKey == null ? "" : apiKey.trim();
         this.deviceId = deviceId == null ? "" : deviceId.trim();
         this.defaultCountryCode = defaultCountryCode;
-        this.http = RestClient.builder().baseUrl(baseUrl).build();
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(10_000);
+        String base = baseUrl == null || baseUrl.isBlank() ? "https://api.textbee.dev" : baseUrl.trim();
+        this.http = RestClient.builder().baseUrl(base).requestFactory(factory).build();
     }
 
     public boolean isEnabled() {
@@ -72,18 +76,21 @@ public class SmsService {
     }
 
     /** Accepts "+919876543210", "919876543210", "98765 43210" or "9876543210" and returns E.164, or null. */
-    String normalize(String phone) {
+    public String normalize(String phone) {
         if (phone == null) {
             return null;
         }
         String digits = phone.replaceAll("[^0-9+]", "");
         if (digits.startsWith("+")) {
-            return digits.length() >= 11 ? digits : null;
+            return digits.matches("\\+[1-9][0-9]{9,14}") ? digits : null;
         }
-        if (digits.length() == 10) {
+        if (digits.length() == 11 && digits.startsWith("0")) {
+            digits = digits.substring(1); // trunk prefix, e.g. 098765 43210
+        }
+        if (digits.matches("[6-9][0-9]{9}") || (digits.length() == 10 && !"+91".equals(defaultCountryCode))) {
             return defaultCountryCode + digits;
         }
-        if (digits.length() > 10) {
+        if (digits.matches("[1-9][0-9]{10,14}")) {
             return "+" + digits;
         }
         return null;

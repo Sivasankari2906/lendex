@@ -110,12 +110,11 @@ class PostgresIntegrationTest {
     }
 
     @Test
-    void otpFallsBackToEmailWhenSmsIsNotConfiguredAndResendIsThrottled() throws Exception {
+    void otpReportsFailureWhenNeitherSmsNorEmailCanBeSent() throws Exception {
+        // In tests SMS is off and the mail server is unreachable, so the user must get an error, not a fake success.
         mvc.perform(post("/api/auth/send-otp").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"otp@example.com\",\"phone\":\"9876543210\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.channel").value("email"));
-        mvc.perform(post("/api/auth/send-otp").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"otp@example.com\",\"phone\":\"9876543210\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value("Could not send the code. Try again later."));
     }
 }

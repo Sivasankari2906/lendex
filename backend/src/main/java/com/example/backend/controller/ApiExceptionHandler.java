@@ -18,7 +18,10 @@ public class ApiExceptionHandler {
             "email-exists", new Object[] { HttpStatus.CONFLICT, "An account with that email already exists." },
             "invalid-credentials", new Object[] { HttpStatus.UNAUTHORIZED, "Invalid username or password." },
             "invalid-or-expired-token", new Object[] { HttpStatus.BAD_REQUEST, "This reset link is invalid or has expired." },
-            "user-not-found", new Object[] { HttpStatus.NOT_FOUND, "User not found." });
+            "user-not-found", new Object[] { HttpStatus.NOT_FOUND, "User not found." },
+            "otp-rate-limited", new Object[] { HttpStatus.TOO_MANY_REQUESTS, "Too many codes requested. Wait a moment and try again." },
+            "otp-delivery-failed", new Object[] { HttpStatus.SERVICE_UNAVAILABLE, "Could not send the code. Try again later." },
+            "phone-not-verified", new Object[] { HttpStatus.BAD_REQUEST, "Verify your phone number first." });
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, String>> forbidden(AccessDeniedException e) {
