@@ -1,0 +1,18 @@
+title = "Lendex secret scan"
+
+[extend]
+useDefault = true
+
+# Catches literal passwords and secrets in config files, which the default rules often miss.
+# Values such as ${DB_PASSWORD} or ${MAIL_PASSWORD:} (environment references) are allowed.
+[[rules]]
+id = "hardcoded-config-secret"
+description = "Literal password or secret in a config file"
+regex = '''(?i)(password|passwd|secret|api[_-]?key|token)[a-z0-9_.\-]*\s*[=:]\s*["']?([^\s"'$#{}][^\s"'#]{5,})'''
+secretGroup = 2
+path = '''(?i)\.(properties|ya?ml|env|toml|ini|json|conf)$'''
+
+[rules.allowlist]
+regexTarget = "match"
+regexes = ['''(?i)(change-?me|your-|example|placeholder|test-only)''']
+paths = ['''\.env\.example$''', '''src/test/''', '''package-lock\.json$''']

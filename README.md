@@ -38,3 +38,14 @@ Or run the backend with `cd backend && ./mvnw spring-boot:run` after exporting t
 ```bash
 cd backend && ./mvnw test        # uses an in-memory H2 database, no external services needed
 ```
+
+## Keeping secrets out of the repo
+
+Passwords and keys live only in environment variables (see `.env.example`), never in files. To stop one being committed by accident:
+
+```bash
+brew install gitleaks              # open-source secret scanner
+git config core.hooksPath .githooks   # run once per clone
+```
+
+Every commit is then scanned (`.gitleaks.toml` also catches literal passwords in config files). On GitHub, also turn on **Settings, Code security, Secret scanning and Push protection**, which are free for public repos.
