@@ -12,7 +12,7 @@ public class EmailService {
     private JavaMailSender mailSender;
 
     /** Sender address: the Gmail account in MAIL_USERNAME (Gmail sends as that account anyway). */
-    @org.springframework.beans.factory.annotation.Value("${spring.mail.username:sivasankariarivazhagan@gmail.com}")
+    @org.springframework.beans.factory.annotation.Value("${spring.mail.username:lendex.team@gmail.com}")
     private String fromAddress;
     
     public void sendEmail(String toEmail, String subject, String message) {

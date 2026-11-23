@@ -341,7 +341,7 @@ export default function SettingsPage() {
               <div className="support-info">
                 <h4>Support</h4>
                 <p>For technical support or feature requests:</p>
-                <p>Email: sivasankariarivazhagan@gmail.com</p>
+                <p>Email: lendex.team@gmail.com</p>
                 <p>Version: 1.0.0</p>
                 <p>Last Updated: December 2024</p>
               </div>
