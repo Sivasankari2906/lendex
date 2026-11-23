@@ -10,11 +10,15 @@ public class EmailService {
     
     @Autowired
     private JavaMailSender mailSender;
+
+    /** Sender address: the Gmail account in MAIL_USERNAME (Gmail sends as that account anyway). */
+    @org.springframework.beans.factory.annotation.Value("${spring.mail.username:sivasankariarivazhagan@gmail.com}")
+    private String fromAddress;
     
     public void sendEmail(String toEmail, String subject, String message) {
         try {
             SimpleMailMessage email = new SimpleMailMessage();
-            email.setFrom("lendex.team@gmail.com");
+            email.setFrom(fromAddress);
             email.setTo(toEmail);
             email.setSubject(subject);
             email.setText(message);
@@ -28,7 +32,7 @@ public class EmailService {
     public boolean sendEmailFromLendex(String toEmail, String subject, String message) {
         try {
             SimpleMailMessage email = new SimpleMailMessage();
-            email.setFrom("lendex.team@gmail.com");
+            email.setFrom(fromAddress);
             email.setTo(toEmail);
             email.setSubject(subject);
             email.setText(message);
